@@ -1,0 +1,468 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		08B4C3C270E5CC482EE342D5 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 4B8595650183AD07C6B97D8B /* Localizable.strings */; };
+		0B163EA3CD28EE60BF306871 /* ImageResolution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B1F305462E9EF791636353 /* ImageResolution.swift */; };
+		2394A7B0AD57D5747BBE536F /* AppConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E04FC65DC3615EA8E87A6D0 /* AppConfigStore.swift */; };
+		2875CFBEE04626C7E5A8437C /* NanoBananaDesktopApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2E617228EB44A631B8D4006 /* NanoBananaDesktopApp.swift */; };
+		2CD8CCCDA98DEE27C6C127BA /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EEB4F8DC2A8C135E3926C95 /* Localization.swift */; };
+		3BCB6874E3A7C2BA6117D70E /* GenerationRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0D336805BCAC309C2B5A5B6 /* GenerationRequest.swift */; };
+		3E424875359C5B888FD3E61E /* AppDirectories.swift in Sources */ = {isa = PBXBuildFile; fileRef = 294475AFB80CE1BE2CA5A384 /* AppDirectories.swift */; };
+		3E7F334F10E02A349775E317 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D565B4D6048AEC8A8905718 /* SettingsView.swift */; };
+		3EDEFBEED97F17F303841972 /* ResolutionSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68C6D40FDDE0669A0BD5AAF5 /* ResolutionSelection.swift */; };
+		418191B8819F6EF17CAE9875 /* PromptResolutionMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 415F3A3C69A7FE7B599A5AD4 /* PromptResolutionMapper.swift */; };
+		4B9B562AD83287E31C1F07D3 /* ProxySessionFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2926A4FFBE7C85E8677DC47 /* ProxySessionFactory.swift */; };
+		574C28470341D49396857A45 /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3728CED7FEE491F383E2B009 /* AppError.swift */; };
+		7B6DC5B87D80378A037422B9 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86189ECF13D2E41E8BF7ACC0 /* MainView.swift */; };
+		7C92DE9D91ADF00778F33825 /* HistoryRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EA1B362C80ED4AA7C9DC1D4 /* HistoryRecord.swift */; };
+		7E0FBA5F23A964DE156C9238 /* GenerationMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 678ED4725C58185E0250FDE3 /* GenerationMode.swift */; };
+		8D0A0BA10375420B7183757B /* ImagePersistenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6489B5DA01C3E8A7BABD2B1F /* ImagePersistenceService.swift */; };
+		A07918F5F21171201A72872A /* MainViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13DA8B5B4B084CA80B2A862 /* MainViewModel.swift */; };
+		AE0D17162AD1F8519D41585E /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 840E73F9C24236F208C0D6C7 /* HistoryView.swift */; };
+		B60E437BB5DC7E261CA4E166 /* GeminiAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDD6C032BE0A7033F72EBC09 /* GeminiAPIClient.swift */; };
+		B9581273996FEE7ACE45D977 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE121FDF031CC1E81D5C4004 /* AppConfig.swift */; };
+		BCF1E18C2EF1852A93CF8F7A /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB83DA8D3D72D1E5B5E0E42E /* RootView.swift */; };
+		C271E348F675664C9B4083FE /* FileIO.swift in Sources */ = {isa = PBXBuildFile; fileRef = A81C14EB4712CE8B093A8EC3 /* FileIO.swift */; };
+		C9998BCFFA644EC3C90CB9EE /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D2882E8F875AAEABF4333B9 /* AppLanguage.swift */; };
+		D3A03BC986F7799013EA6DD1 /* HistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5F01DEAF67A889A975D11EF /* HistoryStore.swift */; };
+		D3BC726C5FD2E4DD058D0213 /* ProxyModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66B25E136709B35A118017E /* ProxyModels.swift */; };
+		D6F6A6923056629ACA198BB3 /* FilenameGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4427C09AA0E5D29A680717CB /* FilenameGenerator.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0EEB4F8DC2A8C135E3926C95 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
+		1EA1B362C80ED4AA7C9DC1D4 /* HistoryRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryRecord.swift; sourceTree = "<group>"; };
+		294475AFB80CE1BE2CA5A384 /* AppDirectories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDirectories.swift; sourceTree = "<group>"; };
+		3728CED7FEE491F383E2B009 /* AppError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppError.swift; sourceTree = "<group>"; };
+		37D77234E27870F07968C799 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		38B1F305462E9EF791636353 /* ImageResolution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageResolution.swift; sourceTree = "<group>"; };
+		3E04FC65DC3615EA8E87A6D0 /* AppConfigStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfigStore.swift; sourceTree = "<group>"; };
+		415F3A3C69A7FE7B599A5AD4 /* PromptResolutionMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptResolutionMapper.swift; sourceTree = "<group>"; };
+		4427C09AA0E5D29A680717CB /* FilenameGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilenameGenerator.swift; sourceTree = "<group>"; };
+		6489B5DA01C3E8A7BABD2B1F /* ImagePersistenceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePersistenceService.swift; sourceTree = "<group>"; };
+		678ED4725C58185E0250FDE3 /* GenerationMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerationMode.swift; sourceTree = "<group>"; };
+		68C6D40FDDE0669A0BD5AAF5 /* ResolutionSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResolutionSelection.swift; sourceTree = "<group>"; };
+		6D565B4D6048AEC8A8905718 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		7D2882E8F875AAEABF4333B9 /* AppLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
+		840E73F9C24236F208C0D6C7 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
+		86189ECF13D2E41E8BF7ACC0 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
+		A81C14EB4712CE8B093A8EC3 /* FileIO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileIO.swift; sourceTree = "<group>"; };
+		A982D7E90F63D3333502BF37 /* NanoBananaDesktop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NanoBananaDesktop.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AE121FDF031CC1E81D5C4004 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		B66B25E136709B35A118017E /* ProxyModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyModels.swift; sourceTree = "<group>"; };
+		BB83DA8D3D72D1E5B5E0E42E /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		BDD6C032BE0A7033F72EBC09 /* GeminiAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiAPIClient.swift; sourceTree = "<group>"; };
+		C2011F2BABD681A7BD04718D /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/Localizable.strings; sourceTree = "<group>"; };
+		D13DA8B5B4B084CA80B2A862 /* MainViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewModel.swift; sourceTree = "<group>"; };
+		E0D336805BCAC309C2B5A5B6 /* GenerationRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerationRequest.swift; sourceTree = "<group>"; };
+		F2926A4FFBE7C85E8677DC47 /* ProxySessionFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxySessionFactory.swift; sourceTree = "<group>"; };
+		F2E617228EB44A631B8D4006 /* NanoBananaDesktopApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NanoBananaDesktopApp.swift; sourceTree = "<group>"; };
+		F5F01DEAF67A889A975D11EF /* HistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryStore.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		45812DAD86A148B599B94364 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				AE121FDF031CC1E81D5C4004 /* AppConfig.swift */,
+				3728CED7FEE491F383E2B009 /* AppError.swift */,
+				7D2882E8F875AAEABF4333B9 /* AppLanguage.swift */,
+				678ED4725C58185E0250FDE3 /* GenerationMode.swift */,
+				E0D336805BCAC309C2B5A5B6 /* GenerationRequest.swift */,
+				1EA1B362C80ED4AA7C9DC1D4 /* HistoryRecord.swift */,
+				38B1F305462E9EF791636353 /* ImageResolution.swift */,
+				B66B25E136709B35A118017E /* ProxyModels.swift */,
+				68C6D40FDDE0669A0BD5AAF5 /* ResolutionSelection.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		55DD58497D3DC2D0EBBC8191 = {
+			isa = PBXGroup;
+			children = (
+				7C67893F5CB02203AF3AF381 /* NanoBananaDesktop */,
+				8EF03ECF2464B659FB288A17 /* Resources */,
+				878DF98BBD87D74739456223 /* Sources */,
+				FF83BB5E5F214344FBF64186 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		6C5AA79F2F04B2BF410998E3 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				3E04FC65DC3615EA8E87A6D0 /* AppConfigStore.swift */,
+				294475AFB80CE1BE2CA5A384 /* AppDirectories.swift */,
+				A81C14EB4712CE8B093A8EC3 /* FileIO.swift */,
+				4427C09AA0E5D29A680717CB /* FilenameGenerator.swift */,
+				BDD6C032BE0A7033F72EBC09 /* GeminiAPIClient.swift */,
+				F5F01DEAF67A889A975D11EF /* HistoryStore.swift */,
+				6489B5DA01C3E8A7BABD2B1F /* ImagePersistenceService.swift */,
+				0EEB4F8DC2A8C135E3926C95 /* Localization.swift */,
+				415F3A3C69A7FE7B599A5AD4 /* PromptResolutionMapper.swift */,
+				F2926A4FFBE7C85E8677DC47 /* ProxySessionFactory.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		7C67893F5CB02203AF3AF381 /* NanoBananaDesktop */ = {
+			isa = PBXGroup;
+			children = (
+				F2E617228EB44A631B8D4006 /* NanoBananaDesktopApp.swift */,
+				8EF03ECF2464B659FB288A17 /* Resources */,
+				878DF98BBD87D74739456223 /* Sources */,
+			);
+			name = NanoBananaDesktop;
+			path = .;
+			sourceTree = "<group>";
+		};
+		878DF98BBD87D74739456223 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				45812DAD86A148B599B94364 /* Models */,
+				6C5AA79F2F04B2BF410998E3 /* Services */,
+				AF13E9A60FE67844F1FD19FB /* UI */,
+				FC750D7EBA590B917A3AFFCA /* ViewModels */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		8EF03ECF2464B659FB288A17 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				D3021B468FC9B73C00A50004 /* Localizations */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		AF13E9A60FE67844F1FD19FB /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				840E73F9C24236F208C0D6C7 /* HistoryView.swift */,
+				86189ECF13D2E41E8BF7ACC0 /* MainView.swift */,
+				BB83DA8D3D72D1E5B5E0E42E /* RootView.swift */,
+				6D565B4D6048AEC8A8905718 /* SettingsView.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		D3021B468FC9B73C00A50004 /* Localizations */ = {
+			isa = PBXGroup;
+			children = (
+				4B8595650183AD07C6B97D8B /* Localizable.strings */,
+			);
+			path = Localizations;
+			sourceTree = "<group>";
+		};
+		FC750D7EBA590B917A3AFFCA /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				D13DA8B5B4B084CA80B2A862 /* MainViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		FF83BB5E5F214344FBF64186 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A982D7E90F63D3333502BF37 /* NanoBananaDesktop.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		B6A2318B0D7E48755C075BA5 /* NanoBananaDesktop */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 48EC1D9CDB72B2CF682D6B17 /* Build configuration list for PBXNativeTarget "NanoBananaDesktop" */;
+			buildPhases = (
+				BECE3A18185D336FE0EE92D1 /* Sources */,
+				D0504B0DAA261B76525DE161 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NanoBananaDesktop;
+			packageProductDependencies = (
+			);
+			productName = NanoBananaDesktop;
+			productReference = A982D7E90F63D3333502BF37 /* NanoBananaDesktop.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		DE04C336F1B641030D9EE5C7 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+			};
+			buildConfigurationList = A574D0D1CFCFFF2D16A1DB4E /* Build configuration list for PBXProject "NanoBananaDesktop" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+				ru,
+			);
+			mainGroup = 55DD58497D3DC2D0EBBC8191;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B6A2318B0D7E48755C075BA5 /* NanoBananaDesktop */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D0504B0DAA261B76525DE161 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				08B4C3C270E5CC482EE342D5 /* Localizable.strings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		BECE3A18185D336FE0EE92D1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B9581273996FEE7ACE45D977 /* AppConfig.swift in Sources */,
+				2394A7B0AD57D5747BBE536F /* AppConfigStore.swift in Sources */,
+				3E424875359C5B888FD3E61E /* AppDirectories.swift in Sources */,
+				574C28470341D49396857A45 /* AppError.swift in Sources */,
+				C9998BCFFA644EC3C90CB9EE /* AppLanguage.swift in Sources */,
+				C271E348F675664C9B4083FE /* FileIO.swift in Sources */,
+				D6F6A6923056629ACA198BB3 /* FilenameGenerator.swift in Sources */,
+				B60E437BB5DC7E261CA4E166 /* GeminiAPIClient.swift in Sources */,
+				7E0FBA5F23A964DE156C9238 /* GenerationMode.swift in Sources */,
+				3BCB6874E3A7C2BA6117D70E /* GenerationRequest.swift in Sources */,
+				7C92DE9D91ADF00778F33825 /* HistoryRecord.swift in Sources */,
+				D3A03BC986F7799013EA6DD1 /* HistoryStore.swift in Sources */,
+				AE0D17162AD1F8519D41585E /* HistoryView.swift in Sources */,
+				8D0A0BA10375420B7183757B /* ImagePersistenceService.swift in Sources */,
+				0B163EA3CD28EE60BF306871 /* ImageResolution.swift in Sources */,
+				2CD8CCCDA98DEE27C6C127BA /* Localization.swift in Sources */,
+				7B6DC5B87D80378A037422B9 /* MainView.swift in Sources */,
+				A07918F5F21171201A72872A /* MainViewModel.swift in Sources */,
+				2875CFBEE04626C7E5A8437C /* NanoBananaDesktopApp.swift in Sources */,
+				418191B8819F6EF17CAE9875 /* PromptResolutionMapper.swift in Sources */,
+				D3BC726C5FD2E4DD058D0213 /* ProxyModels.swift in Sources */,
+				4B9B562AD83287E31C1F07D3 /* ProxySessionFactory.swift in Sources */,
+				3EDEFBEED97F17F303841972 /* ResolutionSelection.swift in Sources */,
+				BCF1E18C2EF1852A93CF8F7A /* RootView.swift in Sources */,
+				3E7F334F10E02A349775E317 /* SettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		4B8595650183AD07C6B97D8B /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				37D77234E27870F07968C799 /* en */,
+				C2011F2BABD681A7BD04718D /* ru */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		3D7447420BDAD1B861595902 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = NanoBananaDesktop;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nanobanana.desktop;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		7149E949B59AE20DCB02FC16 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		785DC5908963ADC6763A284D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		90495877A758FCD2AA75EC53 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = NanoBananaDesktop;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nanobanana.desktop;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		48EC1D9CDB72B2CF682D6B17 /* Build configuration list for PBXNativeTarget "NanoBananaDesktop" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				90495877A758FCD2AA75EC53 /* Debug */,
+				3D7447420BDAD1B861595902 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A574D0D1CFCFFF2D16A1DB4E /* Build configuration list for PBXProject "NanoBananaDesktop" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7149E949B59AE20DCB02FC16 /* Debug */,
+				785DC5908963ADC6763A284D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = DE04C336F1B641030D9EE5C7 /* Project object */;
+}

@@ -1,0 +1,26 @@
+name: NanoBananaDesktop
+options:
+  bundleIdPrefix: com.nanobanana
+settings:
+  base:
+    MACOSX_DEPLOYMENT_TARGET: 13.0
+targets:
+  NanoBananaDesktop:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: .
+        excludes:
+          - Tests
+          - NanoBananaDesktop.xcodeproj
+          - project.yml
+    resources:
+      - path: Resources/Localizations
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nanobanana.desktop
+        SWIFT_VERSION: 6.0
+        INFOPLIST_KEY_CFBundleDisplayName: NanoBananaDesktop
+        INFOPLIST_KEY_NSPrincipalClass: NSApplication
+        GENERATE_INFOPLIST_FILE: YES
