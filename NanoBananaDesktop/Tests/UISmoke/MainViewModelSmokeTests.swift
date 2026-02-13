@@ -316,7 +316,7 @@ func modelCatalogManualRefreshLoadsImageReadyModels() async throws {
 
     let textModels = await MainActor.run { viewModel.availableTextModels }
     #expect(textModels.count == 2)
-    #expect(textModels.map(\.name) == ["gemini-3-pro-image-preview", "gemini-2.5-flash"])
+    #expect(textModels.map(\.name) == ["gemini-2.5-flash", "gemini-3-pro-image-preview"])
 
     MockURLProtocol.removeHandler(forAPIKey: apiKey)
 }

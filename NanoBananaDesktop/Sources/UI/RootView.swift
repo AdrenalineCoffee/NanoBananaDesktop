@@ -53,23 +53,6 @@ struct RootView: View {
             NSApp.activate(ignoringOtherApps: true)
         }
         .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button {
-                    selection = .create
-                    viewModel.generate()
-                } label: {
-                    Label(viewModel.localized("action.generate"), systemImage: "wand.and.stars")
-                }
-                .disabled(selection != .create || !viewModel.canGenerate)
-
-                Button {
-                    viewModel.revealLastOutputInFinder()
-                } label: {
-                    Label(viewModel.localized("action.show_in_finder"), systemImage: "folder")
-                }
-                .disabled(!viewModel.hasOutputToReveal)
-            }
-
             ToolbarItem(placement: .automatic) {
                 HStack(spacing: 6) {
                     Image(systemName: viewModel.proxyStatusSymbol)

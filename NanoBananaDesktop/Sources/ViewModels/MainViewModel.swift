@@ -15,6 +15,7 @@ final class MainViewModel: ObservableObject {
     @Published var prompt: String = ""
     @Published var resolutionSelection: ResolutionSelection = .k1
     @Published var aspectRatioSelection: AspectRatioSelection = .auto
+    @Published var isImageSettingsExpanded: Bool = true
     @Published var attachedImages: [AttachedImage] = [] {
         didSet {
             autoDetectedAspectRatio = detectSourceAspectRatio(from: attachedImages)
@@ -125,6 +126,43 @@ final class MainViewModel: ObservableObject {
 
     var canGenerate: Bool {
         !isGenerating && !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var canEnhancePrompt: Bool {
+        !isEnhancingPrompt && !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var resolutionSliderValue: Double {
+        get {
+            switch resolutionSelection {
+            case .k2:
+                return 1
+            case .k4:
+                return 2
+            case .auto, .k1:
+                return 0
+            }
+        }
+        set {
+            if newValue < 0.5 {
+                resolutionSelection = .k1
+            } else if newValue < 1.5 {
+                resolutionSelection = .k2
+            } else {
+                resolutionSelection = .k4
+            }
+        }
+    }
+
+    var resolutionValueLabel: String {
+        switch resolutionSelection {
+        case .k2:
+            return ImageResolution.k2.rawValue
+        case .k4:
+            return ImageResolution.k4.rawValue
+        case .auto, .k1:
+            return ImageResolution.k1.rawValue
+        }
     }
 
     var resolvedAspectRatio: ImageAspectRatio {
@@ -250,7 +288,9 @@ final class MainViewModel: ObservableObject {
         if normalizedPromptModel.lowercased().hasPrefix("models/") {
             config.promptEnhancementModel = String(normalizedPromptModel.dropFirst("models/".count))
         } else {
-            config.promptEnhancementModel = normalizedPromptModel.isEmpty ? config.model : normalizedPromptModel
+            config.promptEnhancementModel = normalizedPromptModel.isEmpty
+                ? AppConfig.defaultPromptEnhancementModel
+                : normalizedPromptModel
         }
 
         let normalizedInstruction = config.promptEnhancementInstruction.trimmingCharacters(in: .whitespacesAndNewlines)

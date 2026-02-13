@@ -15,8 +15,12 @@
 "main.resolution" = "Resolution";
 "main.aspect_ratio" = "Aspect ratio";
 "main.aspect_ratio_auto" = "Auto (source / 1:1)";
+"main.aspect_ratio_auto_short" = "Auto";
 "main.aspect_ratio_auto_value" = "Auto uses %@";
 "main.last_output" = "Last generated image";
+"main.last_output_empty" = "No image has been generated yet.";
+"main.canvas_empty_title" = "Generated image will appear here";
+"main.canvas_empty_description" = "Click Generate to render and preview the image on the left canvas.";
 "main.model_response" = "Model response";
 "main.generated_preview" = "Generated preview";
 "main.fullscreen_hint" = "Click image to close fullscreen view";

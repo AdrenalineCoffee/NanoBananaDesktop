@@ -1,8 +1,30 @@
 import Foundation
 
 struct AppConfig: Codable, Equatable {
-    static let defaultModel = "gemini-3-pro-image-preview"
-    static let defaultPromptEnhancementInstruction = "Улучши мой запрос для генерации изображения в Nano Banana Pro и пришли только исключительно улучшенный запрос без дополнительных слов"
+    static let legacyDefaultImageModel = "gemini-3-pro-image-preview"
+    static let legacyDefaultPromptEnhancementInstruction = "Улучши мой запрос для генерации изображения в Nano Banana Pro и пришли только исключительно улучшенный запрос без дополнительных слов"
+    static let defaultModel = "nano-banana-pro-preview"
+    static let defaultPromptEnhancementModel = "gemini-3-flash-preview"
+    static let defaultPromptEnhancementInstruction = """
+Ты — Prompt Refiner для Nano Banana Pro. Твоя задача: прочитать мой ОРИГИНАЛЬНЫЙ ПРОМПТ и переписать его так, чтобы итоговое изображение/кадр(ы) получились максимально качественными, но при этом полностью сохранились: замысел, стиль, настроение, сюжет, ключевые объекты, цвета/бренд (если задано), и любые явные ограничения.
+ВАЖНО: не “улучшай” стиль от себя и не предлагай другой художественный язык. Не добавляй новых персонажей/объектов, если я их не просил. Не меняй эпоху, этничность, возраст, одежду, сеттинг, IP/фандом, если это не указано. Если в моём промпте стиль задан (аниме/реализм/3D/стопмоушн/комикс/фото и т.д.) — усиливай ТОЛЬКО в рамках этого стиля.
+
+Принципы улучшения (следуй им всегда):
+1) Перепиши промпт естественным языком, полными фразами (не “tag-soup”).
+2) Обязательно структурируй содержание по блокам: Subject, Composition, Action, Location, Style.
+3) Добавь уточнения про камеру/оптику/ракурс, свет, материалы/текстуры, фон, глубину резкости, но только такие, которые НЕ меняют задумку (только повышают качество и контроль).
+4) Если есть текст на изображении — вынеси его в кавычки и задай правила: язык, шрифт/стиль, расположение, читабельность.
+5) Сгенерируй отдельный Negative Prompt (10–20 коротких точных запретов), адаптированный к моему стилю (например: для фотореализма — убрать “cartoon/illustration”; для аниме — убрать “photoreal/skin pores” и т.п.). Не делай негатив слишком длинным.
+6) Если мой запрос про анимацию/серии кадров: сохрани стиль и выдай “Storyboard/Shot list” из 4–8 кадров (кадр → действие → камера/ракурс → свет → ключевые неизменные детали персонажа/окружения). Без лишних сюжетных добавок.
+7) Никаких вопросов мне не задавай. Если деталей мало — добавляй “безопасные” дефолтные уточнения (аккуратный свет, чистая композиция, фокус на главном), но не меняй смысл.
+
+Формат ответа (строго так):
+IMPROVED PROMPT: (единый улучшенный промпт для генерации), NEGATIVE PROMPT: (10–20 пунктов/слов через запятую)
+
+Присылай в ответ только готовый промпт! Не пиши ничего лишнего!
+
+МОЙ ОРИГИНАЛЬНЫЙ ПРОМПТ:
+"""
     static let defaultRequestTimeoutSec = 120
     static let defaultNetworkPolicyVersion = 1
 
@@ -45,7 +67,7 @@ struct AppConfig: Codable, Equatable {
         return AppConfig(
             apiKey: "",
             model: defaultModel,
-            promptEnhancementModel: defaultModel,
+            promptEnhancementModel: defaultPromptEnhancementModel,
             promptEnhancementInstruction: defaultPromptEnhancementInstruction,
             language: .systemDefault(),
             defaultOutputDir: outputDirectory.path,
@@ -143,7 +165,7 @@ struct AppConfig: Codable, Equatable {
 
         apiKey = try container.decodeIfPresent(String.self, forKey: .apiKey) ?? defaults.apiKey
         model = try container.decodeIfPresent(String.self, forKey: .model) ?? defaults.model
-        promptEnhancementModel = try container.decodeIfPresent(String.self, forKey: .promptEnhancementModel) ?? model
+        promptEnhancementModel = try container.decodeIfPresent(String.self, forKey: .promptEnhancementModel) ?? defaults.promptEnhancementModel
         promptEnhancementInstruction = try container.decodeIfPresent(String.self, forKey: .promptEnhancementInstruction) ?? defaults.promptEnhancementInstruction
         language = try container.decodeIfPresent(AppLanguage.self, forKey: .language) ?? defaults.language
         defaultOutputDir = try container.decodeIfPresent(String.self, forKey: .defaultOutputDir) ?? defaults.defaultOutputDir

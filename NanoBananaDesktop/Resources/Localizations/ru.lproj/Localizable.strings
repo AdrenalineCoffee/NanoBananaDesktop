@@ -15,8 +15,12 @@
 "main.resolution" = "Разрешение";
 "main.aspect_ratio" = "Соотношение сторон";
 "main.aspect_ratio_auto" = "Авто (из исходника / 1:1)";
+"main.aspect_ratio_auto_short" = "Авто";
 "main.aspect_ratio_auto_value" = "Авто использует %@";
 "main.last_output" = "Последнее сгенерированное изображение";
+"main.last_output_empty" = "Изображение ещё не сгенерировано.";
+"main.canvas_empty_title" = "Здесь появится результат генерации";
+"main.canvas_empty_description" = "Нажмите «Сгенерировать», чтобы увидеть изображение в левом холсте.";
 "main.model_response" = "Ответ модели";
 "main.generated_preview" = "Превью результата";
 "main.fullscreen_hint" = "Нажмите на изображение, чтобы закрыть полноэкранный режим";

@@ -18,7 +18,7 @@ func configStoreCreatesDefaultsWhenFileMissing() throws {
         .path
 
     #expect(result.config.model == AppConfig.defaultModel)
-    #expect(result.config.promptEnhancementModel == AppConfig.defaultModel)
+    #expect(result.config.promptEnhancementModel == AppConfig.defaultPromptEnhancementModel)
     #expect(result.config.promptEnhancementInstruction == AppConfig.defaultPromptEnhancementInstruction)
     #expect(result.config.proxyEnabled == true)
     #expect(result.config.allowDirectFallback == false)
@@ -60,7 +60,7 @@ func configStoreMigratesLegacyPicturesDirectoryToNanoBananaImg() throws {
 
     #expect(result.recoveredFromCorruption == false)
     #expect(result.config.defaultOutputDir == expectedPath)
-    #expect(result.config.promptEnhancementModel == "gemini-3-pro-image-preview")
+    #expect(result.config.promptEnhancementModel == AppConfig.defaultPromptEnhancementModel)
     #expect(result.config.promptEnhancementInstruction == AppConfig.defaultPromptEnhancementInstruction)
     #expect(result.config.proxyEnabled == true)
     #expect(result.config.proxyType == .http)

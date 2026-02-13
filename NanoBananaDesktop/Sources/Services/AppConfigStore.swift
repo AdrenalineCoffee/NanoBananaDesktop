@@ -64,11 +64,26 @@ final class AppConfigStore {
         let trimmedPromptModel = config.promptEnhancementModel.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedEnhancementInstruction = config.promptEnhancementInstruction.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        let normalizedImageModel = normalizedModelName(from: trimmedImageModel, fallback: AppConfig.defaultModel)
-        let normalizedPromptModel = normalizedModelName(
-            from: trimmedPromptModel.isEmpty ? normalizedImageModel : trimmedPromptModel,
-            fallback: normalizedImageModel
+        var normalizedImageModel = normalizedModelName(from: trimmedImageModel, fallback: AppConfig.defaultModel)
+        if normalizedImageModel == AppConfig.legacyDefaultImageModel {
+            normalizedImageModel = AppConfig.defaultModel
+        }
+
+        var normalizedPromptModel = normalizedModelName(
+            from: trimmedPromptModel,
+            fallback: AppConfig.defaultPromptEnhancementModel
         )
+        if normalizedPromptModel == AppConfig.legacyDefaultImageModel {
+            normalizedPromptModel = AppConfig.defaultPromptEnhancementModel
+        }
+
+        let normalizedEnhancementInstruction: String
+        if trimmedEnhancementInstruction.isEmpty
+            || trimmedEnhancementInstruction == AppConfig.legacyDefaultPromptEnhancementInstruction {
+            normalizedEnhancementInstruction = AppConfig.defaultPromptEnhancementInstruction
+        } else {
+            normalizedEnhancementInstruction = trimmedEnhancementInstruction
+        }
 
         let migratedDefaultPath = AppConfig.defaultOutputDirectory(
             currentWorkingDirectory: currentWorkingDirectory,
@@ -100,9 +115,7 @@ final class AppConfigStore {
             apiKey: trimmedKey,
             model: normalizedImageModel,
             promptEnhancementModel: normalizedPromptModel,
-            promptEnhancementInstruction: trimmedEnhancementInstruction.isEmpty
-                ? AppConfig.defaultPromptEnhancementInstruction
-                : trimmedEnhancementInstruction,
+            promptEnhancementInstruction: normalizedEnhancementInstruction,
             language: config.language,
             defaultOutputDir: outputDirectory,
             requestTimeoutSec: timeout,
