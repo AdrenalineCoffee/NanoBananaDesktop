@@ -20,6 +20,7 @@ func configStoreCreatesDefaultsWhenFileMissing() throws {
     #expect(result.config.model == AppConfig.defaultModel)
     #expect(result.config.promptEnhancementModel == AppConfig.defaultPromptEnhancementModel)
     #expect(result.config.promptEnhancementInstruction == AppConfig.defaultPromptEnhancementInstruction)
+    #expect(result.config.promptFromImageInstruction == AppConfig.defaultPromptFromImageInstruction)
     #expect(result.config.proxyEnabled == true)
     #expect(result.config.allowDirectFallback == false)
     #expect(result.config.networkPolicyVersion == AppConfig.defaultNetworkPolicyVersion)
@@ -62,6 +63,7 @@ func configStoreMigratesLegacyPicturesDirectoryToNanoBananaImg() throws {
     #expect(result.config.defaultOutputDir == expectedPath)
     #expect(result.config.promptEnhancementModel == AppConfig.defaultPromptEnhancementModel)
     #expect(result.config.promptEnhancementInstruction == AppConfig.defaultPromptEnhancementInstruction)
+    #expect(result.config.promptFromImageInstruction == AppConfig.defaultPromptFromImageInstruction)
     #expect(result.config.proxyEnabled == true)
     #expect(result.config.proxyType == .http)
     #expect(result.config.proxyPort == 8080)
@@ -81,6 +83,31 @@ func configStoreRecoversFromCorruptedJSON() throws {
 
     #expect(result.recoveredFromCorruption == true)
     #expect(result.config.model == AppConfig.defaultModel)
+}
+
+@Test
+func configStoreMigratesMissingPromptFromImageInstructionToDefault() throws {
+    let tempDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+    let configURL = tempDir.appendingPathComponent("config.json")
+    let oldSchemaJSON = """
+    {
+      "apiKey": "abc",
+      "model": "nano-banana-pro-preview",
+      "promptEnhancementModel": "gemini-3-flash-preview",
+      "promptEnhancementInstruction": "Improve prompt",
+      "language": "en",
+      "defaultOutputDir": "/tmp",
+      "requestTimeoutSec": 120
+    }
+    """
+    try oldSchemaJSON.data(using: .utf8)?.write(to: configURL)
+
+    let store = try AppConfigStore(configURL: configURL)
+    let result = store.load(currentWorkingDirectory: tempDir)
+    #expect(result.config.promptFromImageInstruction == AppConfig.defaultPromptFromImageInstruction)
 }
 
 @Test
@@ -127,10 +154,12 @@ func configStorePersistsCustomModelName() throws {
     config.model = "custom-image-model"
     config.promptEnhancementModel = "custom-text-model"
     config.promptEnhancementInstruction = "Refine this prompt"
+    config.promptFromImageInstruction = "Describe this image as a generation prompt"
     try store.save(config)
 
     let reloaded = store.load(currentWorkingDirectory: tempDir).config
     #expect(reloaded.model == "custom-image-model")
     #expect(reloaded.promptEnhancementModel == "custom-text-model")
     #expect(reloaded.promptEnhancementInstruction == "Refine this prompt")
+    #expect(reloaded.promptFromImageInstruction == "Describe this image as a generation prompt")
 }

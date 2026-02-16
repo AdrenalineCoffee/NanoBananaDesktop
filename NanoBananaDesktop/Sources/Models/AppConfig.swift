@@ -5,6 +5,7 @@ struct AppConfig: Codable, Equatable {
     static let legacyDefaultPromptEnhancementInstruction = "Улучши мой запрос для генерации изображения в Nano Banana Pro и пришли только исключительно улучшенный запрос без дополнительных слов"
     static let defaultModel = "nano-banana-pro-preview"
     static let defaultPromptEnhancementModel = "gemini-3-flash-preview"
+    static let defaultPromptFromImageInstruction = "Проанализируй изображение и создай готовый детальный промпт для генерации похожего результата. Верни только финальный промпт без пояснений."
     static let defaultPromptEnhancementInstruction = """
 Ты — Prompt Refiner для Nano Banana Pro. Твоя задача: прочитать мой ОРИГИНАЛЬНЫЙ ПРОМПТ и переписать его так, чтобы итоговое изображение/кадр(ы) получились максимально качественными, но при этом полностью сохранились: замысел, стиль, настроение, сюжет, ключевые объекты, цвета/бренд (если задано), и любые явные ограничения.
 ВАЖНО: не “улучшай” стиль от себя и не предлагай другой художественный язык. Не добавляй новых персонажей/объектов, если я их не просил. Не меняй эпоху, этничность, возраст, одежду, сеттинг, IP/фандом, если это не указано. Если в моём промпте стиль задан (аниме/реализм/3D/стопмоушн/комикс/фото и т.д.) — усиливай ТОЛЬКО в рамках этого стиля.
@@ -31,6 +32,7 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
     var apiKey: String
     var model: String
     var promptEnhancementModel: String
+    var promptFromImageInstruction: String
     var promptEnhancementInstruction: String
     var language: AppLanguage
     var defaultOutputDir: String
@@ -68,6 +70,7 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
             apiKey: "",
             model: defaultModel,
             promptEnhancementModel: defaultPromptEnhancementModel,
+            promptFromImageInstruction: defaultPromptFromImageInstruction,
             promptEnhancementInstruction: defaultPromptEnhancementInstruction,
             language: .systemDefault(),
             defaultOutputDir: outputDirectory.path,
@@ -107,6 +110,7 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
         case apiKey
         case model
         case promptEnhancementModel
+        case promptFromImageInstruction
         case promptEnhancementInstruction
         case language
         case defaultOutputDir
@@ -126,6 +130,7 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
         apiKey: String,
         model: String,
         promptEnhancementModel: String,
+        promptFromImageInstruction: String,
         promptEnhancementInstruction: String,
         language: AppLanguage,
         defaultOutputDir: String,
@@ -143,6 +148,7 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
         self.apiKey = apiKey
         self.model = model
         self.promptEnhancementModel = promptEnhancementModel
+        self.promptFromImageInstruction = promptFromImageInstruction
         self.promptEnhancementInstruction = promptEnhancementInstruction
         self.language = language
         self.defaultOutputDir = defaultOutputDir
@@ -166,6 +172,8 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
         apiKey = try container.decodeIfPresent(String.self, forKey: .apiKey) ?? defaults.apiKey
         model = try container.decodeIfPresent(String.self, forKey: .model) ?? defaults.model
         promptEnhancementModel = try container.decodeIfPresent(String.self, forKey: .promptEnhancementModel) ?? defaults.promptEnhancementModel
+        promptFromImageInstruction = try container.decodeIfPresent(String.self, forKey: .promptFromImageInstruction)
+            ?? defaults.promptFromImageInstruction
         promptEnhancementInstruction = try container.decodeIfPresent(String.self, forKey: .promptEnhancementInstruction) ?? defaults.promptEnhancementInstruction
         language = try container.decodeIfPresent(AppLanguage.self, forKey: .language) ?? defaults.language
         defaultOutputDir = try container.decodeIfPresent(String.self, forKey: .defaultOutputDir) ?? defaults.defaultOutputDir
@@ -199,6 +207,7 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
         try container.encode(apiKey, forKey: .apiKey)
         try container.encode(model, forKey: .model)
         try container.encode(promptEnhancementModel, forKey: .promptEnhancementModel)
+        try container.encode(promptFromImageInstruction, forKey: .promptFromImageInstruction)
         try container.encode(promptEnhancementInstruction, forKey: .promptEnhancementInstruction)
         try container.encode(language, forKey: .language)
         try container.encode(defaultOutputDir, forKey: .defaultOutputDir)

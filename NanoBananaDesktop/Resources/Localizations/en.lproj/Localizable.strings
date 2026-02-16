@@ -7,6 +7,8 @@
 "main.title" = "Nano Banana Pro";
 "main.prompt" = "Prompt";
 "main.prompt_drop_hint" = "Type your request here or drag images into this field";
+"main.prompt_convert_zone" = "Convert to prompt";
+"main.prompt_convert_zone_hint" = "Drop an image in the lower zone to generate a prompt";
 "main.image_settings" = "Image settings";
 "main.model" = "Model";
 "main.model_refresh" = "Refresh model list";
@@ -38,7 +40,8 @@
 "settings.api_key" = "Gemini API key";
 "settings.model" = "Model";
 "settings.image_model" = "Image generation model";
-"settings.prompt_model" = "Prompt enhancement model";
+"settings.prompt_model" = "Prompt work model";
+"settings.prompt_from_image_instruction" = "Instruction for generating a prompt from dropped photo";
 "settings.prompt_enhancement_instruction" = "Prompt enhancement template";
 "settings.model_sync_hint" = "This model is synced with the model picker on the Create screen.";
 "settings.text_models_status" = "Text model status";
@@ -87,6 +90,13 @@
 "history.copy_model_response" = "Copy model response";
 "history.copy_error" = "Copy error";
 "history.copy_output_path" = "Copy output path";
+"history.reuse" = "Reuse";
+"history.open_location" = "Open location";
+"history.open_fullscreen" = "Open fullscreen";
+"history.reuse_loaded" = "Prompt and attachments loaded from history (%d).";
+"history.reuse_prompt_only_no_attachments" = "Prompt loaded from history. This record has no attached source files.";
+"history.reuse_prompt_only_missing_files" = "Prompt loaded from history. Source files are unavailable: %@";
+"history.output_unavailable" = "Generated output is no longer available at the saved path.";
 "history.thumbnail_alt" = "Result thumbnail";
 
 "route.proxy" = "PROXY";
@@ -102,12 +112,16 @@
 
 "status.success_saved" = "Image saved: %@";
 "status.prompt_enhanced" = "Prompt updated successfully.";
+"status.prompt_from_image_in_progress" = "Generating prompt from image...";
+"status.prompt_from_image_done" = "Prompt from image is ready.";
 
 "warning.config_recovered" = "Config was corrupted and restored to defaults.";
 "warning.config_store_unavailable" = "Config store is unavailable, running with in-memory defaults.";
 
 "error.empty_prompt" = "Prompt is required.";
 "error.missing_api_key" = "API key is missing. Add GEMINI API key in Settings.";
+"error.prompt_from_image_no_valid_file" = "No valid image file found for prompt generation.";
+"error.prompt_from_image_model_not_supported" = "Selected model does not support image input for prompt work.";
 "error.missing_input_image" = "Select an input image for edit mode.";
 "error.unreadable_input_image" = "Cannot read input image file.";
 "error.unsupported_attachment_format" = "Unsupported attachment format: %@";

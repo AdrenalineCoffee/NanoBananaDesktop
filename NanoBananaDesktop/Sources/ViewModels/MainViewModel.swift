@@ -9,6 +9,12 @@ enum ModelRefreshTrigger {
     case keyChanged
 }
 
+enum HistoryReuseOutcome: Equatable {
+    case restoredAttachments(Int)
+    case promptOnlyMissingFiles(missingPaths: [String])
+    case promptOnlyNoAttachments
+}
+
 @MainActor
 final class MainViewModel: ObservableObject {
     @Published var config: AppConfig
@@ -36,6 +42,7 @@ final class MainViewModel: ObservableObject {
     @Published var isLoadingModels: Bool = false
     @Published var modelCatalogErrorMessage: String?
     @Published var isEnhancingPrompt: Bool = false
+    @Published var isGeneratingPromptFromImage: Bool = false
 
     @Published var history: [HistoryRecord] = []
     @Published var historyFilter: HistoryFilter = .all
@@ -125,11 +132,15 @@ final class MainViewModel: ObservableObject {
     }
 
     var canGenerate: Bool {
-        !isGenerating && !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !isGenerating &&
+            !isGeneratingPromptFromImage &&
+            !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var canEnhancePrompt: Bool {
-        !isEnhancingPrompt && !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !isEnhancingPrompt &&
+            !isGeneratingPromptFromImage &&
+            !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var resolutionSliderValue: Double {
@@ -298,6 +309,11 @@ final class MainViewModel: ObservableObject {
             ? AppConfig.defaultPromptEnhancementInstruction
             : normalizedInstruction
 
+        let normalizedPromptFromImageInstruction = config.promptFromImageInstruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        config.promptFromImageInstruction = normalizedPromptFromImageInstruction.isEmpty
+            ? AppConfig.defaultPromptFromImageInstruction
+            : normalizedPromptFromImageInstruction
+
         let updatedAPIKey = config.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         let didAPIKeyChange = updatedAPIKey != lastSavedAPIKey
 
@@ -339,48 +355,12 @@ final class MainViewModel: ObservableObject {
     }
 
     func handleDroppedImageURLs(_ urls: [URL]) {
-        var existingTokens = Set(attachedImages.map(\.mentionToken))
-        var addedAny = false
-
-        for url in urls {
-            let candidateURL = url.standardizedFileURL
-
-            if attachedImages.contains(where: { $0.fileURL.standardizedFileURL == candidateURL }) {
-                continue
-            }
-
-            guard isSupportedAttachment(url: candidateURL) else {
-                setError(.unsupportedAttachmentFormat(candidateURL.lastPathComponent))
-                continue
-            }
-
-            guard fileManager.fileExists(atPath: candidateURL.path),
-                  fileManager.isReadableFile(atPath: candidateURL.path) else {
-                setError(.unreadableAttachment(candidateURL.lastPathComponent))
-                continue
-            }
-
-            guard let thumbnail = NSImage(contentsOf: candidateURL) else {
-                setError(.unreadableAttachment(candidateURL.lastPathComponent))
-                continue
-            }
-
-            let mentionToken = mentionService.makeMentionToken(fileURL: candidateURL, existingTokens: existingTokens)
-            existingTokens.insert(mentionToken)
-
-            attachedImages.append(
-                AttachedImage(
-                    fileURL: candidateURL,
-                    displayName: candidateURL.lastPathComponent,
-                    mentionToken: mentionToken,
-                    thumbnail: thumbnail
-                )
-            )
-            addedAny = true
-        }
-
-        if addedAny {
+        let buildResult = buildAttachments(from: urls, existingAttachments: attachedImages)
+        if !buildResult.attachments.isEmpty {
+            attachedImages.append(contentsOf: buildResult.attachments)
             errorMessage = nil
+        } else if let firstError = buildResult.errors.first {
+            setError(firstError)
         }
     }
 
@@ -390,6 +370,46 @@ final class MainViewModel: ObservableObject {
 
     func requestMentionInsert(for attachment: AttachedImage) {
         pendingMentionInsert = attachment.mentionToken
+    }
+
+    @discardableResult
+    func reuseFromHistory(_ record: HistoryRecord) -> HistoryReuseOutcome {
+        clearTransientMessages()
+        prompt = record.prompt
+        pendingMentionInsert = nil
+        attachedImages = []
+
+        let normalizedPaths = record.inputImagePaths
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !normalizedPaths.isEmpty else {
+            successMessage = localized("history.reuse_prompt_only_no_attachments")
+            return .promptOnlyNoAttachments
+        }
+
+        let fileURLs = normalizedPaths.map { URL(fileURLWithPath: $0) }
+        let buildResult = buildAttachments(from: fileURLs, existingAttachments: [])
+        if !buildResult.errors.isEmpty {
+            let missingPaths = normalizedPaths.filter { path in
+                let url = URL(fileURLWithPath: path)
+                return !fileManager.fileExists(atPath: url.path) || !fileManager.isReadableFile(atPath: url.path)
+            }
+
+            let unavailablePaths = missingPaths.isEmpty
+                ? normalizedPaths
+                : missingPaths
+
+            errorMessage = localized(
+                "history.reuse_prompt_only_missing_files",
+                unavailablePaths.joined(separator: ", ")
+            )
+            return .promptOnlyMissingFiles(missingPaths: unavailablePaths)
+        }
+
+        attachedImages = buildResult.attachments
+        successMessage = localized("history.reuse_loaded", buildResult.attachments.count)
+        return .restoredAttachments(buildResult.attachments.count)
     }
 
     func revealLastOutputInFinder() {
@@ -450,9 +470,15 @@ final class MainViewModel: ObservableObject {
             inputImages: inputImages
         )
 
-        let configuredProxySummary = config.proxyEnabled
-            ? "\(config.proxyType.rawValue)://\(config.proxyHost):\(config.proxyPort)"
-            : nil
+        let configuredProxySummary: String?
+        if config.proxyEnabled {
+            let trimmedProxyHost = config.proxyHost.trimmingCharacters(in: .whitespacesAndNewlines)
+            configuredProxySummary = trimmedProxyHost.isEmpty
+                ? nil
+                : "\(config.proxyType.rawValue)://\(trimmedProxyHost):\(config.proxyPort)"
+        } else {
+            configuredProxySummary = nil
+        }
 
         isGenerating = true
         let startedAt = Date()
@@ -639,8 +665,165 @@ final class MainViewModel: ObservableObject {
         }
     }
 
+    func generatePromptFromImage(from droppedURLs: [URL]) {
+        clearTransientMessages()
+
+        let apiKey = config.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !apiKey.isEmpty else {
+            setError(.missingAPIKey)
+            return
+        }
+
+        let promptModel = config.promptEnhancementModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !promptModel.isEmpty else {
+            setError(.invalidConfiguration("Prompt model cannot be empty"))
+            return
+        }
+
+        guard let inputImage = firstValidPromptFromImageInput(from: droppedURLs) else {
+            setError(.promptFromImageNoValidFile)
+            return
+        }
+
+        let instruction = config.promptFromImageInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? AppConfig.defaultPromptFromImageInstruction
+            : config.promptFromImageInstruction.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        isGeneratingPromptFromImage = true
+
+        Task { [weak self] in
+            guard let self else {
+                return
+            }
+
+            defer { self.isGeneratingPromptFromImage = false }
+
+            do {
+                let primaryRoute = try self.resolvePrimaryRoute()
+
+                let generatedPrompt: String
+                if primaryRoute == .proxy {
+                    do {
+                        generatedPrompt = try await self.performPromptFromImage(
+                            prompt: instruction,
+                            model: promptModel,
+                            apiKey: apiKey,
+                            images: [inputImage],
+                            route: .proxy
+                        )
+                    } catch let proxyError as AppError where proxyError.isRecoverableProxyFailure {
+                        guard self.config.allowDirectFallback else {
+                            throw AppError.directFallbackDisabled(proxyError.debugDetails)
+                        }
+
+                        generatedPrompt = try await self.performPromptFromImage(
+                            prompt: instruction,
+                            model: promptModel,
+                            apiKey: apiKey,
+                            images: [inputImage],
+                            route: .directFallback
+                        )
+                    }
+                } else {
+                    generatedPrompt = try await self.performPromptFromImage(
+                        prompt: instruction,
+                        model: promptModel,
+                        apiKey: apiKey,
+                        images: [inputImage],
+                        route: primaryRoute
+                    )
+                }
+
+                let normalizedPrompt = generatedPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !normalizedPrompt.isEmpty else {
+                    throw AppError.noTextInResponse
+                }
+
+                self.prompt = normalizedPrompt
+                self.successMessage = self.localized("status.prompt_from_image_done")
+            } catch let appError as AppError {
+                self.setError(appError)
+            } catch {
+                self.setError(.network(error.localizedDescription))
+            }
+        }
+    }
+
     private func isSupportedAttachment(url: URL) -> Bool {
         supportedAttachmentExtensions.contains(url.pathExtension.lowercased())
+    }
+
+    private func buildAttachments(from urls: [URL], existingAttachments: [AttachedImage]) -> AttachmentBuildResult {
+        var existingPaths = Set(existingAttachments.map { $0.fileURL.standardizedFileURL.path })
+        var existingTokens = Set(existingAttachments.map(\.mentionToken))
+        var generatedAttachments: [AttachedImage] = []
+        var errors: [AppError] = []
+
+        for sourceURL in urls {
+            let candidateURL = sourceURL.standardizedFileURL
+
+            if existingPaths.contains(candidateURL.path) {
+                continue
+            }
+
+            guard isSupportedAttachment(url: candidateURL) else {
+                errors.append(.unsupportedAttachmentFormat(candidateURL.lastPathComponent))
+                continue
+            }
+
+            guard fileManager.fileExists(atPath: candidateURL.path),
+                  fileManager.isReadableFile(atPath: candidateURL.path) else {
+                errors.append(.unreadableAttachment(candidateURL.lastPathComponent))
+                continue
+            }
+
+            guard let thumbnail = NSImage(contentsOf: candidateURL) else {
+                errors.append(.unreadableAttachment(candidateURL.lastPathComponent))
+                continue
+            }
+
+            let mentionToken = mentionService.makeMentionToken(fileURL: candidateURL, existingTokens: existingTokens)
+            existingTokens.insert(mentionToken)
+            existingPaths.insert(candidateURL.path)
+            generatedAttachments.append(
+                AttachedImage(
+                    fileURL: candidateURL,
+                    displayName: candidateURL.lastPathComponent,
+                    mentionToken: mentionToken,
+                    thumbnail: thumbnail
+                )
+            )
+        }
+
+        return AttachmentBuildResult(attachments: generatedAttachments, errors: errors)
+    }
+
+    private func firstValidPromptFromImageInput(from droppedURLs: [URL]) -> GenerationInputImage? {
+        for sourceURL in droppedURLs {
+            let candidateURL = sourceURL.standardizedFileURL
+            guard isSupportedAttachment(url: candidateURL) else {
+                continue
+            }
+
+            guard fileManager.fileExists(atPath: candidateURL.path),
+                  fileManager.isReadableFile(atPath: candidateURL.path) else {
+                continue
+            }
+
+            do {
+                let imageData = try Data(contentsOf: candidateURL)
+                return GenerationInputImage(
+                    fileURL: candidateURL,
+                    filename: candidateURL.lastPathComponent,
+                    mimeType: mimeType(for: candidateURL),
+                    data: imageData
+                )
+            } catch {
+                continue
+            }
+        }
+
+        return nil
     }
 
     private func promptEnhancementInput(for trimmedPrompt: String) -> String {
@@ -701,6 +884,25 @@ final class MainViewModel: ObservableObject {
             prompt: prompt,
             model: model,
             apiKey: apiKey,
+            timeoutSec: config.requestTimeoutSec,
+            session: session,
+            route: route
+        )
+    }
+
+    private func performPromptFromImage(
+        prompt: String,
+        model: String,
+        apiKey: String,
+        images: [GenerationInputImage],
+        route: NetworkRoute
+    ) async throws -> String {
+        let session = try networkClientProvider.makeSession(config: config, route: route)
+        return try await apiClient.generateTextFromImages(
+            prompt: prompt,
+            model: model,
+            apiKey: apiKey,
+            images: images,
             timeoutSec: config.requestTimeoutSec,
             session: session,
             route: route
@@ -828,6 +1030,8 @@ final class MainViewModel: ObservableObject {
             return localized("error.unsupported_attachment_format", filename)
         case .unreadableAttachment(let filename):
             return localized("error.unreadable_attachment", filename)
+        case .promptFromImageModelNotSupported:
+            return localized("error.prompt_from_image_model_not_supported")
         default:
             return localized(error.localizationKey)
         }
@@ -930,4 +1134,9 @@ final class MainViewModel: ObservableObject {
     private func localizedStatic(_ key: String, language: AppLanguage, _ args: CVarArg...) -> String {
         Localizer.string(key, language: language, args)
     }
+}
+
+private struct AttachmentBuildResult {
+    let attachments: [AttachedImage]
+    let errors: [AppError]
 }

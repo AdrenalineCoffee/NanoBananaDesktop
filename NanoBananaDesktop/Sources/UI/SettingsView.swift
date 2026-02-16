@@ -105,6 +105,23 @@ struct SettingsView: View {
                             )
                         }
 
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(viewModel.localized("settings.prompt_from_image_instruction"))
+                                .font(.callout)
+
+                            TextEditor(text: Binding(
+                                get: { viewModel.config.promptFromImageInstruction },
+                                set: { viewModel.config.promptFromImageInstruction = $0 }
+                            ))
+                            .font(.callout)
+                            .frame(minHeight: 88)
+                            .padding(6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+                            )
+                        }
+
                         Text(viewModel.localized("settings.model_sync_hint"))
                             .font(.caption)
                             .foregroundStyle(.secondary)

@@ -62,6 +62,7 @@ final class AppConfigStore {
         let trimmedKey = config.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedImageModel = config.model.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedPromptModel = config.promptEnhancementModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedPromptFromImageInstruction = config.promptFromImageInstruction.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedEnhancementInstruction = config.promptEnhancementInstruction.trimmingCharacters(in: .whitespacesAndNewlines)
 
         var normalizedImageModel = normalizedModelName(from: trimmedImageModel, fallback: AppConfig.defaultModel)
@@ -83,6 +84,13 @@ final class AppConfigStore {
             normalizedEnhancementInstruction = AppConfig.defaultPromptEnhancementInstruction
         } else {
             normalizedEnhancementInstruction = trimmedEnhancementInstruction
+        }
+
+        let normalizedPromptFromImageInstruction: String
+        if trimmedPromptFromImageInstruction.isEmpty {
+            normalizedPromptFromImageInstruction = AppConfig.defaultPromptFromImageInstruction
+        } else {
+            normalizedPromptFromImageInstruction = trimmedPromptFromImageInstruction
         }
 
         let migratedDefaultPath = AppConfig.defaultOutputDirectory(
@@ -115,6 +123,7 @@ final class AppConfigStore {
             apiKey: trimmedKey,
             model: normalizedImageModel,
             promptEnhancementModel: normalizedPromptModel,
+            promptFromImageInstruction: normalizedPromptFromImageInstruction,
             promptEnhancementInstruction: normalizedEnhancementInstruction,
             language: config.language,
             defaultOutputDir: outputDirectory,

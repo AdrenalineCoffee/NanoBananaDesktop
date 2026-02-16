@@ -3,6 +3,8 @@ import Foundation
 enum AppError: Error, Equatable {
     case emptyPrompt
     case missingAPIKey
+    case promptFromImageNoValidFile
+    case promptFromImageModelNotSupported(String)
     case missingInputImage
     case unreadableInputImage
     case unsupportedAttachmentFormat(String)
@@ -38,6 +40,10 @@ enum AppError: Error, Equatable {
             return "error.empty_prompt"
         case .missingAPIKey:
             return "error.missing_api_key"
+        case .promptFromImageNoValidFile:
+            return "error.prompt_from_image_no_valid_file"
+        case .promptFromImageModelNotSupported:
+            return "error.prompt_from_image_model_not_supported"
         case .missingInputImage:
             return "error.missing_input_image"
         case .unreadableInputImage:
@@ -104,6 +110,8 @@ enum AppError: Error, Equatable {
              .directFallbackDisabled(let message),
              .proxyInvalidSettings(let message):
             return message
+        case .promptFromImageModelNotSupported:
+            return ""
         case .unsupportedAttachmentFormat, .unreadableAttachment:
             return ""
         case .serverError(let code):

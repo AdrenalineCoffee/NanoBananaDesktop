@@ -1,10 +1,16 @@
 import AppKit
 import SwiftUI
 
+enum PromptDropTarget: Equatable {
+    case attachments
+    case convertToPrompt
+}
+
 struct PromptTextEditor: NSViewRepresentable {
     @Binding var text: String
     @Binding var mentionToInsert: String?
-    var onFilesDropped: ([URL]) -> Void
+    var onFilesDropped: ([URL], PromptDropTarget) -> Void
+    var onDropTargetChanged: (PromptDropTarget?) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -38,9 +44,14 @@ struct PromptTextEditor: NSViewRepresentable {
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
         textView.autoresizingMask = NSView.AutoresizingMask.width
-        textView.onFilesDropped = { urls in
+        textView.onFilesDropped = { urls, target in
             DispatchQueue.main.async {
-                context.coordinator.parent.onFilesDropped(urls)
+                context.coordinator.parent.onFilesDropped(urls, target)
+            }
+        }
+        textView.onDropTargetChanged = { target in
+            DispatchQueue.main.async {
+                context.coordinator.parent.onDropTargetChanged(target)
             }
         }
 
@@ -127,7 +138,8 @@ struct PromptTextEditor: NSViewRepresentable {
 }
 
 final class DropAwareTextView: NSTextView {
-    var onFilesDropped: (([URL]) -> Void)?
+    var onFilesDropped: (([URL], PromptDropTarget) -> Void)?
+    var onDropTargetChanged: ((PromptDropTarget?) -> Void)?
 
     override init(frame frameRect: NSRect, textContainer container: NSTextContainer?) {
         super.init(frame: frameRect, textContainer: container)
@@ -143,6 +155,7 @@ final class DropAwareTextView: NSTextView {
         if droppedFileURLs(from: sender).isEmpty {
             return super.draggingEntered(sender)
         }
+        onDropTargetChanged?(dropTarget(from: sender))
         return .copy
     }
 
@@ -150,7 +163,13 @@ final class DropAwareTextView: NSTextView {
         if droppedFileURLs(from: sender).isEmpty {
             return super.draggingUpdated(sender)
         }
+        onDropTargetChanged?(dropTarget(from: sender))
         return .copy
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        onDropTargetChanged?(nil)
+        super.draggingExited(sender)
     }
 
     override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
@@ -165,8 +184,15 @@ final class DropAwareTextView: NSTextView {
         guard !urls.isEmpty else {
             return super.performDragOperation(sender)
         }
-        onFilesDropped?(urls)
+        let target = dropTarget(from: sender)
+        onFilesDropped?(urls, target)
+        onDropTargetChanged?(nil)
         return true
+    }
+
+    override func concludeDragOperation(_ sender: NSDraggingInfo?) {
+        onDropTargetChanged?(nil)
+        super.concludeDragOperation(sender)
     }
 
     override func readSelection(from pboard: NSPasteboard, type: NSPasteboard.PasteboardType) -> Bool {
@@ -183,5 +209,15 @@ final class DropAwareTextView: NSTextView {
             return []
         }
         return urls
+    }
+
+    private func dropTarget(from draggingInfo: NSDraggingInfo) -> PromptDropTarget {
+        let windowPoint = draggingInfo.draggingLocation
+        let localPoint = convert(windowPoint, from: nil)
+        // NSTextView is flipped on macOS, so Y grows downward.
+        // We route drops in the bottom 30% of the *visible* area to image->prompt flow.
+        let visible = visibleRect
+        let convertThresholdY = visible.minY + (visible.height * 0.70)
+        return localPoint.y >= convertThresholdY ? .convertToPrompt : .attachments
     }
 }

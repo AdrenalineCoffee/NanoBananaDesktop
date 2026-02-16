@@ -7,6 +7,8 @@
 "main.title" = "Nano Banana Pro";
 "main.prompt" = "Промпт";
 "main.prompt_drop_hint" = "Введите запрос или перетащите изображения в это поле";
+"main.prompt_convert_zone" = "Превратить в промпт";
+"main.prompt_convert_zone_hint" = "Перетащите фото в нижнюю зону для генерации промпта";
 "main.image_settings" = "Параметры изображения";
 "main.model" = "Нейросеть";
 "main.model_refresh" = "Обновить список моделей";
@@ -38,7 +40,8 @@
 "settings.api_key" = "Gemini API ключ";
 "settings.model" = "Модель";
 "settings.image_model" = "Модель для генерации изображений";
-"settings.prompt_model" = "Модель для улучшения промпта";
+"settings.prompt_model" = "Модель для работы с промптом";
+"settings.prompt_from_image_instruction" = "Запрос для генерации промпта по загруженной фотографии";
 "settings.prompt_enhancement_instruction" = "Шаблон улучшения промпта";
 "settings.model_sync_hint" = "Эта модель синхронизирована с выбором нейросети на экране Создание.";
 "settings.text_models_status" = "Статус text-моделей";
@@ -87,6 +90,13 @@
 "history.copy_model_response" = "Копировать ответ модели";
 "history.copy_error" = "Копировать ошибку";
 "history.copy_output_path" = "Копировать путь к файлу";
+"history.reuse" = "Повторить";
+"history.open_location" = "Открыть расположение";
+"history.open_fullscreen" = "Открыть на весь экран";
+"history.reuse_loaded" = "Промпт и вложения загружены из истории (%d).";
+"history.reuse_prompt_only_no_attachments" = "Промпт загружен из истории. Вложенные файлы в этой записи отсутствуют.";
+"history.reuse_prompt_only_missing_files" = "Промпт загружен из истории. Исходные файлы недоступны: %@";
+"history.output_unavailable" = "Файл результата недоступен по сохраненному пути.";
 "history.thumbnail_alt" = "Миниатюра результата";
 
 "route.proxy" = "PROXY";
@@ -102,12 +112,16 @@
 
 "status.success_saved" = "Изображение сохранено: %@";
 "status.prompt_enhanced" = "Промпт успешно улучшен.";
+"status.prompt_from_image_in_progress" = "Генерируем промпт по изображению...";
+"status.prompt_from_image_done" = "Промпт по изображению готов.";
 
 "warning.config_recovered" = "Файл конфигурации был поврежден и восстановлен по умолчанию.";
 "warning.config_store_unavailable" = "Хранилище конфигурации недоступно, используются настройки в памяти.";
 
 "error.empty_prompt" = "Введите промпт.";
 "error.missing_api_key" = "Не указан API ключ. Добавьте GEMINI API key в Настройках.";
+"error.prompt_from_image_no_valid_file" = "Не удалось найти валидное изображение для генерации промпта.";
+"error.prompt_from_image_model_not_supported" = "Выбранная модель не поддерживает загрузку изображений для работы с промптом.";
 "error.missing_input_image" = "Для режима редактирования выберите входное изображение.";
 "error.unreadable_input_image" = "Не удалось прочитать входной файл изображения.";
 "error.unsupported_attachment_format" = "Неподдерживаемый формат файла: %@";

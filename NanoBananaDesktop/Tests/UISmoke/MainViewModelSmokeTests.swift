@@ -145,9 +145,10 @@ func generateFlowFailsWhenProxyInvalidAndFallbackOff() async throws {
     let client = GeminiAPIClient()
     let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])
 
-    let viewModel = await MainActor.run {
-        MainViewModel(apiClient: client, networkClientProvider: networkProvider)
-    }
+    let viewModel = try await makeIsolatedViewModel(
+        apiClient: client,
+        networkClientProvider: networkProvider
+    )
 
     await MainActor.run {
         viewModel.config.apiKey = "key-any"
@@ -173,9 +174,7 @@ func handleDroppedImageURLsAddsAttachmentsAndKeepsMentionFlow() async throws {
     try tinyPNGData.write(to: input1)
     try tinyPNGData.write(to: input2)
 
-    let viewModel = await MainActor.run {
-        MainViewModel()
-    }
+    let viewModel = try await makeIsolatedViewModel()
 
     await MainActor.run {
         viewModel.handleDroppedImageURLs([input1, input2])
@@ -193,6 +192,200 @@ func handleDroppedImageURLsAddsAttachmentsAndKeepsMentionFlow() async throws {
 
     let pendingMention = await MainActor.run { viewModel.pendingMentionInsert }
     #expect(pendingMention != nil)
+}
+
+@Test
+func reuseFromHistoryRestoresPromptAndAttachmentsWhenAllFilesExist() async throws {
+    let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+
+    let sourceA = tempDirectory.appendingPathComponent("source-a.png")
+    let sourceB = tempDirectory.appendingPathComponent("source-b.jpg")
+    try tinyPNGData.write(to: sourceA)
+    try tinyPNGData.write(to: sourceB)
+
+    let historyRecord = HistoryRecord(
+        mode: .edit,
+        prompt: "reuse this prompt",
+        resolution: .k1,
+        inputImagePaths: [sourceA.path, sourceB.path],
+        outputImagePath: nil,
+        status: .success,
+        errorMessage: nil,
+        durationMs: 120,
+        networkRoute: .proxy,
+        proxyUsed: true,
+        fallbackUsed: false
+    )
+
+    let viewModel = try await makeIsolatedViewModel()
+
+    let outcome = await MainActor.run {
+        viewModel.prompt = "old prompt"
+        viewModel.attachedImages = [
+            AttachedImage(fileURL: sourceA, displayName: "old.png", mentionToken: "@old", thumbnail: nil)
+        ]
+        return viewModel.reuseFromHistory(historyRecord)
+    }
+
+    switch outcome {
+    case .restoredAttachments(let count):
+        #expect(count == 2)
+    default:
+        Issue.record("Expected restored attachments outcome")
+    }
+
+    let prompt = await MainActor.run { viewModel.prompt }
+    #expect(prompt == "reuse this prompt")
+
+    let attachments = await MainActor.run { viewModel.attachedImages }
+    #expect(attachments.count == 2)
+    #expect(attachments.map(\.fileURL.path) == [sourceA.path, sourceB.path])
+
+    let successMessage = await MainActor.run { viewModel.successMessage }
+    let errorMessage = await MainActor.run { viewModel.errorMessage }
+    #expect(successMessage != nil)
+    #expect(errorMessage == nil)
+}
+
+@Test
+func reuseFromHistoryFallsBackToPromptOnlyWhenAnyFileMissing() async throws {
+    let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+
+    let existingFile = tempDirectory.appendingPathComponent("source-a.png")
+    let missingFile = tempDirectory.appendingPathComponent("missing.png")
+    try tinyPNGData.write(to: existingFile)
+
+    let historyRecord = HistoryRecord(
+        mode: .edit,
+        prompt: "restore prompt only",
+        resolution: .k1,
+        inputImagePaths: [existingFile.path, missingFile.path],
+        outputImagePath: nil,
+        status: .success,
+        errorMessage: nil,
+        durationMs: 100,
+        networkRoute: .proxy,
+        proxyUsed: true,
+        fallbackUsed: false
+    )
+
+    let viewModel = try await makeIsolatedViewModel()
+
+    let outcome = await MainActor.run {
+        viewModel.reuseFromHistory(historyRecord)
+    }
+
+    switch outcome {
+    case .promptOnlyMissingFiles(let missingPaths):
+        #expect(missingPaths.contains(missingFile.path))
+    default:
+        Issue.record("Expected prompt-only missing-files outcome")
+    }
+
+    let prompt = await MainActor.run { viewModel.prompt }
+    let attachments = await MainActor.run { viewModel.attachedImages }
+    let errorMessage = await MainActor.run { viewModel.errorMessage }
+    let successMessage = await MainActor.run { viewModel.successMessage }
+
+    #expect(prompt == "restore prompt only")
+    #expect(attachments.isEmpty)
+    #expect(errorMessage != nil)
+    #expect(successMessage == nil)
+}
+
+@Test
+func reuseFromHistoryReplacesExistingDraftNotAppend() async throws {
+    let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+
+    let existingAttachment = tempDirectory.appendingPathComponent("existing.png")
+    try tinyPNGData.write(to: existingAttachment)
+
+    let historyRecord = HistoryRecord(
+        mode: .generate,
+        prompt: "new prompt from history",
+        resolution: .k1,
+        inputImagePaths: [],
+        outputImagePath: nil,
+        status: .success,
+        errorMessage: nil,
+        durationMs: 80,
+        networkRoute: .proxy,
+        proxyUsed: true,
+        fallbackUsed: false
+    )
+
+    let viewModel = try await makeIsolatedViewModel()
+
+    let outcome = await MainActor.run {
+        viewModel.prompt = "draft text"
+        viewModel.attachedImages = [
+            AttachedImage(
+                fileURL: existingAttachment,
+                displayName: "existing.png",
+                mentionToken: "@existing",
+                thumbnail: nil
+            )
+        ]
+        return viewModel.reuseFromHistory(historyRecord)
+    }
+
+    #expect(outcome == .promptOnlyNoAttachments)
+
+    let prompt = await MainActor.run { viewModel.prompt }
+    let attachments = await MainActor.run { viewModel.attachedImages }
+    #expect(prompt == "new prompt from history")
+    #expect(attachments.isEmpty)
+}
+
+@Test
+func reuseFromHistoryKeepsMentionTokensUniqueForDuplicateFilenames() async throws {
+    let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let firstDirectory = tempDirectory.appendingPathComponent("a", isDirectory: true)
+    let secondDirectory = tempDirectory.appendingPathComponent("b", isDirectory: true)
+    try FileManager.default.createDirectory(at: firstDirectory, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: secondDirectory, withIntermediateDirectories: true)
+
+    let firstFile = firstDirectory.appendingPathComponent("ref.png")
+    let secondFile = secondDirectory.appendingPathComponent("ref.png")
+    try tinyPNGData.write(to: firstFile)
+    try tinyPNGData.write(to: secondFile)
+
+    let historyRecord = HistoryRecord(
+        mode: .edit,
+        prompt: "duplicate names",
+        resolution: .k1,
+        inputImagePaths: [firstFile.path, secondFile.path],
+        outputImagePath: nil,
+        status: .success,
+        errorMessage: nil,
+        durationMs: 100,
+        networkRoute: .proxy,
+        proxyUsed: true,
+        fallbackUsed: false
+    )
+
+    let viewModel = try await makeIsolatedViewModel()
+
+    let outcome = await MainActor.run {
+        viewModel.reuseFromHistory(historyRecord)
+    }
+
+    switch outcome {
+    case .restoredAttachments(let count):
+        #expect(count == 2)
+    default:
+        Issue.record("Expected restored attachments outcome")
+    }
+
+    let mentionTokens = await MainActor.run { viewModel.attachedImages.map(\.mentionToken) }
+    #expect(mentionTokens == ["@ref", "@ref_2"])
 }
 
 @Test
@@ -259,9 +452,7 @@ func generateFlowAllowsDirectFallbackWhenEnabled() async throws {
 func modelCatalogManualRefreshLoadsImageReadyModels() async throws {
     let apiKey = "key-model-catalog-refresh"
     let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])
-    let viewModel = await MainActor.run {
-        MainViewModel(networkClientProvider: networkProvider)
-    }
+    let viewModel = try await makeIsolatedViewModel(networkClientProvider: networkProvider)
 
     MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
         if request.url?.path.contains("/v1beta/models") == true {
@@ -446,9 +637,7 @@ func enhancePromptReplacesPromptWithModelResponse() async throws {
 
 @Test
 func enhancePromptFailsWhenPromptIsEmpty() async throws {
-    let viewModel = await MainActor.run {
-        MainViewModel()
-    }
+    let viewModel = try await makeIsolatedViewModel()
 
     await MainActor.run {
         viewModel.config.apiKey = "key-present"
@@ -458,6 +647,214 @@ func enhancePromptFailsWhenPromptIsEmpty() async throws {
 
     let errorMessage = await MainActor.run { viewModel.errorMessage }
     #expect(errorMessage != nil)
+}
+
+@Test
+func generatePromptFromImageHappyPathReplacesPromptAndTogglesProgressState() async throws {
+    let apiKey = "key-smoke-prompt-from-image"
+    let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])
+    let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+    let configStore = try AppConfigStore(configURL: tempDirectory.appendingPathComponent("config.json"))
+    let historyStore = try HistoryStore(historyURL: tempDirectory.appendingPathComponent("history.json"))
+    let imageURL = tempDirectory.appendingPathComponent("source.png")
+    try tinyPNGData.write(to: imageURL)
+
+    let viewModel = await MainActor.run {
+        MainViewModel(
+            configStore: configStore,
+            historyStore: historyStore,
+            networkClientProvider: networkProvider
+        )
+    }
+
+    MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
+        let body = try #require(requestBody(from: request))
+        let payload = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+        let contents = try #require(payload["contents"] as? [[String: Any]])
+        let firstContent = try #require(contents.first)
+        let parts = try #require(firstContent["parts"] as? [[String: Any]])
+        #expect(parts.count == 2)
+        #expect(parts[0]["inlineData"] != nil)
+        #expect(parts[1]["text"] as? String == "Build from image")
+
+        let json: [String: Any] = [
+            "candidates": [[
+                "content": [
+                    "parts": [["text": "Prompt from dropped image"]]
+                ]
+            ]]
+        ]
+        let responseData = try JSONSerialization.data(withJSONObject: json)
+        let response = HTTPURLResponse(
+            url: try #require(request.url),
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (response, responseData)
+    }
+
+    await MainActor.run {
+        viewModel.config.apiKey = apiKey
+        viewModel.config.proxyEnabled = true
+        viewModel.config.proxyHost = "proxy.local"
+        viewModel.config.proxyPort = 8080
+        viewModel.config.promptEnhancementModel = "gemini-3-flash-preview"
+        viewModel.config.promptFromImageInstruction = "Build from image"
+        viewModel.prompt = "old prompt"
+        viewModel.generatePromptFromImage(from: [imageURL])
+    }
+
+    let started = await MainActor.run { viewModel.isGeneratingPromptFromImage }
+    #expect(started == true)
+
+    try await waitForPromptFromImageComplete(viewModel: viewModel)
+
+    let finished = await MainActor.run { viewModel.isGeneratingPromptFromImage }
+    let prompt = await MainActor.run { viewModel.prompt }
+    let successMessage = await MainActor.run { viewModel.successMessage }
+    #expect(finished == false)
+    #expect(prompt == "Prompt from dropped image")
+    #expect(successMessage != nil)
+
+    MockURLProtocol.removeHandler(forAPIKey: apiKey)
+}
+
+@Test
+func generatePromptFromImageDoesNotAppendDroppedImageToAttachments() async throws {
+    let apiKey = "key-smoke-prompt-from-image-no-attach"
+    let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])
+    let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+    let configStore = try AppConfigStore(configURL: tempDirectory.appendingPathComponent("config.json"))
+    let historyStore = try HistoryStore(historyURL: tempDirectory.appendingPathComponent("history.json"))
+    let imageURL = tempDirectory.appendingPathComponent("source.png")
+    try tinyPNGData.write(to: imageURL)
+
+    let viewModel = await MainActor.run {
+        MainViewModel(
+            configStore: configStore,
+            historyStore: historyStore,
+            networkClientProvider: networkProvider
+        )
+    }
+
+    MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
+        let json: [String: Any] = [
+            "candidates": [[
+                "content": [
+                    "parts": [["text": "Prompt ready"]]
+                ]
+            ]]
+        ]
+        let responseData = try JSONSerialization.data(withJSONObject: json)
+        let response = HTTPURLResponse(
+            url: try #require(request.url),
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (response, responseData)
+    }
+
+    await MainActor.run {
+        viewModel.config.apiKey = apiKey
+        viewModel.config.proxyEnabled = true
+        viewModel.config.proxyHost = "proxy.local"
+        viewModel.config.proxyPort = 8080
+        viewModel.attachedImages = [
+            AttachedImage(fileURL: imageURL, displayName: "existing.png", mentionToken: "@existing", thumbnail: nil)
+        ]
+        viewModel.generatePromptFromImage(from: [imageURL])
+    }
+
+    try await waitForPromptFromImageComplete(viewModel: viewModel)
+
+    let attachments = await MainActor.run { viewModel.attachedImages }
+    #expect(attachments.count == 1)
+    #expect(attachments.first?.mentionToken == "@existing")
+
+    MockURLProtocol.removeHandler(forAPIKey: apiKey)
+}
+
+@Test
+func generatePromptFromImageShowsErrorWhenModelLacksImageInput() async throws {
+    let apiKey = "key-smoke-prompt-from-image-unsupported"
+    let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])
+    let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+    let configStore = try AppConfigStore(configURL: tempDirectory.appendingPathComponent("config.json"))
+    let historyStore = try HistoryStore(historyURL: tempDirectory.appendingPathComponent("history.json"))
+    let imageURL = tempDirectory.appendingPathComponent("source.png")
+    try tinyPNGData.write(to: imageURL)
+
+    let viewModel = await MainActor.run {
+        MainViewModel(
+            configStore: configStore,
+            historyStore: historyStore,
+            networkClientProvider: networkProvider
+        )
+    }
+
+    MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
+        let json: [String: Any] = [
+            "error": [
+                "code": 400,
+                "message": "image input modality is not enabled for this model"
+            ]
+        ]
+        let responseData = try JSONSerialization.data(withJSONObject: json)
+        let response = HTTPURLResponse(
+            url: try #require(request.url),
+            statusCode: 400,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (response, responseData)
+    }
+
+    await MainActor.run {
+        viewModel.config.apiKey = apiKey
+        viewModel.config.proxyEnabled = true
+        viewModel.config.proxyHost = "proxy.local"
+        viewModel.config.proxyPort = 8080
+        viewModel.prompt = "unchanged prompt"
+        viewModel.generatePromptFromImage(from: [imageURL])
+    }
+
+    try await waitForPromptFromImageComplete(viewModel: viewModel)
+
+    let prompt = await MainActor.run { viewModel.prompt }
+    let errorMessage = await MainActor.run { viewModel.errorMessage ?? "" }
+    let localizedPrefix = await MainActor.run { viewModel.localized("error.prompt_from_image_model_not_supported") }
+    #expect(prompt == "unchanged prompt")
+    #expect(errorMessage.contains(localizedPrefix))
+
+    MockURLProtocol.removeHandler(forAPIKey: apiKey)
+}
+
+@MainActor
+private func makeIsolatedViewModel(
+    apiClient: GeminiAPIClient = GeminiAPIClient(),
+    networkClientProvider: NetworkClientProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])
+) throws -> MainViewModel {
+    let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+
+    let configStore = try AppConfigStore(configURL: tempDirectory.appendingPathComponent("config.json"))
+    let historyStore = try HistoryStore(historyURL: tempDirectory.appendingPathComponent("history.json"))
+
+    return MainViewModel(
+        configStore: configStore,
+        historyStore: historyStore,
+        apiClient: apiClient,
+        networkClientProvider: networkClientProvider
+    )
 }
 
 private struct ProxyFirstThenDirectProvider: NetworkClientProvider {
@@ -506,6 +903,17 @@ private func waitForPromptEnhancementComplete(viewModel: MainViewModel) async th
         try await Task.sleep(nanoseconds: 50_000_000)
     }
     Issue.record("Prompt enhancement did not complete in time")
+}
+
+private func waitForPromptFromImageComplete(viewModel: MainViewModel) async throws {
+    for _ in 0..<120 {
+        let isGenerating = await MainActor.run { viewModel.isGeneratingPromptFromImage }
+        if !isGenerating {
+            return
+        }
+        try await Task.sleep(nanoseconds: 50_000_000)
+    }
+    Issue.record("Prompt-from-image generation did not complete in time")
 }
 
 private let tinyPNGBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+2YQAAAAASUVORK5CYII="

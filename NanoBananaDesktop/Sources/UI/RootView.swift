@@ -46,9 +46,10 @@ struct RootView: View {
         } detail: {
             detailView(for: selection)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(nsColor: .windowBackgroundColor))
+            .background(.thinMaterial)
         }
         .navigationSplitViewStyle(.balanced)
+        .background(.thinMaterial)
         .onAppear {
             NSApp.activate(ignoringOtherApps: true)
         }
@@ -61,6 +62,8 @@ struct RootView: View {
                         .foregroundStyle(.secondary)
                 }
                 .font(.caption)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 10)
             }
         }
     }
@@ -71,7 +74,9 @@ struct RootView: View {
         case .create:
             MainView(viewModel: viewModel)
         case .history:
-            HistoryView(viewModel: viewModel)
+            HistoryView(viewModel: viewModel) {
+                selection = .create
+            }
         case .settings:
             SettingsView(viewModel: viewModel)
         }

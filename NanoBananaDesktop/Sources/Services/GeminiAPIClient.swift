@@ -136,6 +136,45 @@ actor GeminiAPIClient {
         )
     }
 
+    func generateTextFromImages(
+        prompt: String,
+        model: String,
+        apiKey: String,
+        images: [GenerationInputImage],
+        timeoutSec: Int,
+        session: URLSession,
+        route: NetworkRoute
+    ) async throws -> String {
+        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPrompt.isEmpty else {
+            throw AppError.emptyPrompt
+        }
+
+        let trimmedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedAPIKey.isEmpty else {
+            throw AppError.missingAPIKey
+        }
+
+        let sanitizedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sanitizedModel.isEmpty else {
+            throw AppError.invalidConfiguration("Model cannot be empty")
+        }
+
+        guard !images.isEmpty else {
+            throw AppError.promptFromImageNoValidFile
+        }
+
+        let endpoint = try endpointURL(model: sanitizedModel, apiKey: trimmedAPIKey)
+        let payload = try textFromImagesPayloadData(prompt: trimmedPrompt, images: images)
+        return try await executeTextFromImagesWithRetry(
+            endpoint: endpoint,
+            payload: payload,
+            timeoutSec: timeoutSec,
+            session: session,
+            route: route
+        )
+    }
+
     private func endpointURL(model: String, apiKey: String) throws -> URL {
         let encodedModel = model.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? model
         let endpoint = baseURL.appendingPathComponent("v1beta/models/\(encodedModel):generateContent")
@@ -203,6 +242,31 @@ actor GeminiAPIClient {
         let payload: [String: Any] = [
             "contents": [
                 ["parts": [["text": prompt]]]
+            ]
+        ]
+
+        do {
+            return try JSONSerialization.data(withJSONObject: payload)
+        } catch {
+            throw AppError.invalidConfiguration("Failed to build payload: \(error.localizedDescription)")
+        }
+    }
+
+    private func textFromImagesPayloadData(prompt: String, images: [GenerationInputImage]) throws -> Data {
+        var parts: [[String: Any]] = []
+        for image in images {
+            parts.append([
+                "inlineData": [
+                    "mimeType": image.mimeType,
+                    "data": image.data.base64EncodedString()
+                ]
+            ])
+        }
+        parts.append(["text": prompt])
+
+        let payload: [String: Any] = [
+            "contents": [
+                ["parts": parts]
             ]
         ]
 
@@ -297,6 +361,34 @@ actor GeminiAPIClient {
     }
 
     private func executeTextWithRetry(
+        endpoint: URL,
+        payload: Data,
+        timeoutSec: Int,
+        session: URLSession,
+        route: NetworkRoute
+    ) async throws -> String {
+        var attempts = 0
+
+        while true {
+            do {
+                return try await executeTextOnce(
+                    endpoint: endpoint,
+                    payload: payload,
+                    timeoutSec: timeoutSec,
+                    session: session,
+                    route: route
+                )
+            } catch {
+                if attempts == 0, isTransient(error: error) {
+                    attempts += 1
+                    continue
+                }
+                throw error
+            }
+        }
+    }
+
+    private func executeTextFromImagesWithRetry(
         endpoint: URL,
         payload: Data,
         timeoutSec: Int,
@@ -476,6 +568,9 @@ actor GeminiAPIClient {
 
         switch statusCode {
         case 400:
+            if normalizedMessage.contains("image input modality is not enabled") {
+                return .promptFromImageModelNotSupported(message ?? "Image input modality is not enabled")
+            }
             return AppError.invalidConfiguration(message ?? "Bad request")
         case 401:
             return .unauthorized

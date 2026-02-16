@@ -358,6 +358,168 @@ func generateTextThrowsWhenNoTextPartInResponse() async throws {
     MockURLProtocol.removeHandler(forAPIKey: apiKey)
 }
 
+@Test
+func generateTextFromImagesSendsInlineDataThenTextPrompt() async throws {
+    let apiKey = "key-text-image-payload"
+    let session = makeSession()
+    let client = GeminiAPIClient()
+
+    MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
+        let body = try #require(requestBody(from: request))
+        let payload = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+        let contents = try #require(payload["contents"] as? [[String: Any]])
+        let firstContent = try #require(contents.first)
+        let parts = try #require(firstContent["parts"] as? [[String: Any]])
+
+        #expect(parts.count == 3)
+        #expect(parts[0]["inlineData"] != nil)
+        #expect(parts[1]["inlineData"] != nil)
+        #expect(parts[2]["text"] as? String == "Describe this image")
+
+        let json: [String: Any] = [
+            "candidates": [[
+                "content": [
+                    "parts": [["text": "Detailed prompt result"]]
+                ]
+            ]]
+        ]
+        let responseData = try JSONSerialization.data(withJSONObject: json)
+        let response = HTTPURLResponse(
+            url: try #require(request.url),
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (response, responseData)
+    }
+
+    let output = try await client.generateTextFromImages(
+        prompt: "Describe this image",
+        model: "gemini-3-flash-preview",
+        apiKey: apiKey,
+        images: [
+            GenerationInputImage(
+                fileURL: URL(fileURLWithPath: "/tmp/a.png"),
+                filename: "a.png",
+                mimeType: "image/png",
+                data: Data("a".utf8)
+            ),
+            GenerationInputImage(
+                fileURL: URL(fileURLWithPath: "/tmp/b.png"),
+                filename: "b.png",
+                mimeType: "image/png",
+                data: Data("b".utf8)
+            )
+        ],
+        timeoutSec: 30,
+        session: session,
+        route: .proxy
+    )
+
+    #expect(output == "Detailed prompt result")
+    MockURLProtocol.removeHandler(forAPIKey: apiKey)
+}
+
+@Test
+func generateTextFromImagesThrowsWhenResponseHasNoTextPart() async throws {
+    let apiKey = "key-text-image-no-text"
+    let session = makeSession()
+    let client = GeminiAPIClient()
+
+    MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
+        let json: [String: Any] = [
+            "candidates": [[
+                "content": [
+                    "parts": [["inlineData": ["mimeType": "image/png", "data": "YWJj"]]]
+                ]
+            ]]
+        ]
+        let responseData = try JSONSerialization.data(withJSONObject: json)
+        let response = HTTPURLResponse(
+            url: try #require(request.url),
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (response, responseData)
+    }
+
+    do {
+        _ = try await client.generateTextFromImages(
+            prompt: "Describe this image",
+            model: "gemini-3-flash-preview",
+            apiKey: apiKey,
+            images: [
+                GenerationInputImage(
+                    fileURL: URL(fileURLWithPath: "/tmp/a.png"),
+                    filename: "a.png",
+                    mimeType: "image/png",
+                    data: Data("a".utf8)
+                )
+            ],
+            timeoutSec: 30,
+            session: session,
+            route: .proxy
+        )
+        Issue.record("Expected noTextInResponse error")
+    } catch let error as AppError {
+        #expect(error == .noTextInResponse)
+    }
+
+    MockURLProtocol.removeHandler(forAPIKey: apiKey)
+}
+
+@Test
+func generateTextFromImagesMapsUnsupportedImageModalityToPromptModelError() async throws {
+    let apiKey = "key-text-image-unsupported"
+    let session = makeSession()
+    let client = GeminiAPIClient()
+
+    MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
+        let json: [String: Any] = [
+            "error": [
+                "code": 400,
+                "message": "image input modality is not enabled for this model"
+            ]
+        ]
+        let responseData = try JSONSerialization.data(withJSONObject: json)
+        let response = HTTPURLResponse(
+            url: try #require(request.url),
+            statusCode: 400,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (response, responseData)
+    }
+
+    do {
+        _ = try await client.generateTextFromImages(
+            prompt: "Describe this image",
+            model: "gemini-3-flash-preview",
+            apiKey: apiKey,
+            images: [
+                GenerationInputImage(
+                    fileURL: URL(fileURLWithPath: "/tmp/a.png"),
+                    filename: "a.png",
+                    mimeType: "image/png",
+                    data: Data("a".utf8)
+                )
+            ],
+            timeoutSec: 30,
+            session: session,
+            route: .proxy
+        )
+        Issue.record("Expected promptFromImageModelNotSupported error")
+    } catch let error as AppError {
+        guard case .promptFromImageModelNotSupported = error else {
+            Issue.record("Expected promptFromImageModelNotSupported error")
+            return
+        }
+    }
+
+    MockURLProtocol.removeHandler(forAPIKey: apiKey)
+}
+
 private func makeSession() -> URLSession {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.protocolClasses = [MockURLProtocol.self]

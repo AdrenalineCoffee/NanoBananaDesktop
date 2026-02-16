@@ -4,6 +4,7 @@ import SwiftUI
 struct MainView: View {
     @ObservedObject var viewModel: MainViewModel
     @State private var showFullscreenImage = false
+    @State private var promptDropTarget: PromptDropTarget?
 
     private let inspectorMinWidth: CGFloat = 460
     private let inspectorMaxWidth: CGFloat = 560
@@ -20,26 +21,18 @@ struct MainView: View {
                 VStack(spacing: 0) {
                     headerBar
 
-                    Divider()
-                        .overlay(Color.white.opacity(0.08))
-
                     HStack(spacing: 0) {
                         canvasPane
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                         Divider()
-                            .overlay(Color.white.opacity(0.08))
 
                         inspectorPane
                             .frame(width: inspectorWidth)
                             .frame(maxHeight: .infinity)
                     }
                 }
-                .background(Color.black.opacity(0.22))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 0)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
+                .background(.ultraThinMaterial)
             }
             .allowsHitTesting(!showFullscreenImage)
 
@@ -79,6 +72,7 @@ struct MainView: View {
         }
         .padding(.horizontal, 24)
         .frame(height: 82)
+        .background(Color.black.opacity(0.16))
     }
 
     private var canvasPane: some View {
@@ -246,7 +240,17 @@ struct MainView: View {
                 PromptTextEditor(
                     text: $viewModel.prompt,
                     mentionToInsert: $viewModel.pendingMentionInsert,
-                    onFilesDropped: viewModel.handleDroppedImageURLs
+                    onFilesDropped: { urls, target in
+                        switch target {
+                        case .attachments:
+                            viewModel.handleDroppedImageURLs(urls)
+                        case .convertToPrompt:
+                            viewModel.generatePromptFromImage(from: urls)
+                        }
+                    },
+                    onDropTargetChanged: { target in
+                        promptDropTarget = target
+                    }
                 )
                 .frame(minHeight: 300)
                 .background(
@@ -257,6 +261,7 @@ struct MainView: View {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .stroke(Color.blue.opacity(0.85), lineWidth: 1.4)
                 )
+                .allowsHitTesting(!viewModel.isGeneratingPromptFromImage)
 
                 if viewModel.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text(viewModel.localized("main.prompt_drop_hint"))
@@ -265,6 +270,14 @@ struct MainView: View {
                         .padding(.horizontal, 14)
                         .padding(.vertical, 14)
                         .allowsHitTesting(false)
+                }
+
+                if promptDropTarget != nil {
+                    promptConvertOverlay
+                }
+
+                if viewModel.isGeneratingPromptFromImage {
+                    promptLoadingOverlay
                 }
             }
 
@@ -297,6 +310,11 @@ struct MainView: View {
                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
                 )
         )
+        .onChange(of: viewModel.isGeneratingPromptFromImage) { isGenerating in
+            if !isGenerating {
+                promptDropTarget = nil
+            }
+        }
     }
 
     private var imageSettingsSection: some View {
@@ -414,16 +432,12 @@ struct MainView: View {
 
     @ViewBuilder
     private var attachmentStrip: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(viewModel.localized("attachments.title"))
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-
-            if viewModel.attachedImages.isEmpty {
-                Text(viewModel.localized("attachments.empty"))
-                    .font(.caption2)
+        if !viewModel.attachedImages.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(viewModel.localized("attachments.title"))
+                    .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
-            } else {
+
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(viewModel.attachedImages) { attachment in
@@ -520,5 +534,65 @@ struct MainView: View {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(color.opacity(0.12))
             )
+    }
+
+    @ViewBuilder
+    private var promptConvertOverlay: some View {
+        GeometryReader { geometry in
+            let zoneHeight = max(86, geometry.size.height * 0.30)
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(viewModel.localized("main.prompt_convert_zone"))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.92))
+                    Text(viewModel.localized("main.prompt_convert_zone_hint"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.black.opacity(0.45))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(
+                                    promptDropTarget == .convertToPrompt ? Color.blue.opacity(0.9) : Color.white.opacity(0.25),
+                                    lineWidth: promptDropTarget == .convertToPrompt ? 1.8 : 1.0
+                                )
+                        )
+                )
+                .padding(8)
+                .frame(height: zoneHeight, alignment: .bottom)
+            }
+            .allowsHitTesting(false)
+        }
+    }
+
+    @ViewBuilder
+    private var promptLoadingOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.28)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            VStack(spacing: 8) {
+                ProgressView()
+                    .progressViewStyle(.linear)
+                    .frame(width: 220)
+                Text(viewModel.localized("status.prompt_from_image_in_progress"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(.regularMaterial)
+            )
+        }
+        .allowsHitTesting(true)
     }
 }
