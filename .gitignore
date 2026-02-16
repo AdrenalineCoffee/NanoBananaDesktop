@@ -1,0 +1,36 @@
+# Build / cache
+.build/
+.xcodebuild/
+DerivedData/
+*.dSYM/
+*.xcarchive/
+
+# macOS / Xcode user state
+.DS_Store
+*.xcuserstate
+**/xcuserdata/
+
+# Logs / temp
+*.log
+*.tmp
+
+# Secrets / certs
+.env
+.env.*
+*.pem
+*.p12
+*.key
+*.mobileprovision
+
+# Local dev tooling
+.codex/
+
+# Local binaries / artifacts
+*.app
+/AppIcon.icns
+/Icon.png
+/Icon-converted.png
+/New_icon.png
+
+# Local backups created during repo sanitization
+.safety-backups/

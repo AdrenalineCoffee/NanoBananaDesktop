@@ -1,0 +1,23 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: detect-private-key
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.3
+    hooks:
+      - id: gitleaks
+        args:
+          - "--redact"
+
+  - repo: local
+    hooks:
+      - id: release-guard-forbidden-paths
+        name: release-guard-forbidden-paths
+        entry: bash scripts/release_guard.sh --pre-commit
+        language: system
+        pass_filenames: false
