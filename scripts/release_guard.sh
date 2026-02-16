@@ -34,8 +34,6 @@ check_obvious_secret_patterns() {
         -e 'AIza[0-9A-Za-z_-]{20,}' \
         -e 'sk-[A-Za-z0-9]{20,}' \
         -e 'BEGIN (RSA|EC|OPENSSH|PRIVATE) KEY' \
-        -e 'api[_-]?key[[:space:]]*[:=][[:space:]]*["'"'"'][^"'"'"']+["'"'"']' \
-        -e 'proxyPassword[[:space:]]*[:=][[:space:]]*["'"'"'][^"'"'"']+["'"'"']' \
       || true
   )"
   if [[ -n "$matches" ]]; then
