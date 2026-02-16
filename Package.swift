@@ -23,7 +23,8 @@ let package = Package(
                 "project.yml"
             ],
             resources: [
-                .process("Resources/Localizations")
+                .process("Resources/Localizations"),
+                .copy("Resources/AppIcon.icns")
             ]
         ),
         .testTarget(
