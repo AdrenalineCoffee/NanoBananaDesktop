@@ -2,6 +2,20 @@
 
 Native macOS desktop app for image generation and image-based prompt workflows using Google Gemini image-capable models, with proxy-aware networking and local history.
 
+## Screenshots
+![Main UI](Screenshot/Screen_1.png)
+![Generated result UI](Screenshot/Screen_2.png)
+
+## Features
+- Image generation and editing (prompt + optional image references).
+- Batch generation: 1 to 4 images per request.
+- Prompt enhancement and prompt-from-image flow.
+- Drag & drop attachments with `@mention` insertion.
+- Proxy-first networking (HTTP/HTTPS/SOCKS5) with optional direct fallback.
+- Resolution, aspect ratio, and model selection from available Gemini models.
+- Local history with reuse, copy actions, thumbnails, and fullscreen preview.
+- RU/EN localization and configurable app settings.
+
 ## Requirements
 - macOS 13+
 - Xcode (for app build/run)
