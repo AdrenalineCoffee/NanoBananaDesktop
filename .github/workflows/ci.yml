@@ -18,8 +18,17 @@ jobs:
 
       - name: Install gitleaks
         run: |
-          curl -sSfL https://raw.githubusercontent.com/gitleaks/gitleaks/master/install.sh \
-            | sh -s -- -b /usr/local/bin v8.24.3
+          VERSION="8.24.3"
+          ARCH="$(uname -m)"
+          case "$ARCH" in
+            x86_64) ASSET="gitleaks_${VERSION}_linux_x64.tar.gz" ;;
+            aarch64|arm64) ASSET="gitleaks_${VERSION}_linux_arm64.tar.gz" ;;
+            *) echo "Unsupported architecture: $ARCH" && exit 1 ;;
+          esac
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/${ASSET}" -o /tmp/gitleaks.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp
+          sudo install -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
 
       - name: Run release guard checks
         run: bash scripts/release_guard.sh --ci
