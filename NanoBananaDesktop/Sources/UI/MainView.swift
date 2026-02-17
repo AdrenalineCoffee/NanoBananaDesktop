@@ -1,9 +1,27 @@
 import AppKit
 import SwiftUI
 
+struct ImagePreviewLayout {
+    static func rows(for imageCount: Int) -> [[Int]] {
+        let boundedCount = min(max(imageCount, 0), 4)
+        switch boundedCount {
+        case 0:
+            return []
+        case 1:
+            return [[0]]
+        case 2:
+            return [[0, 1]]
+        case 3:
+            return [[0, 1], [2]]
+        default:
+            return [[0, 1], [2, 3]]
+        }
+    }
+}
+
 struct MainView: View {
     @ObservedObject var viewModel: MainViewModel
-    @State private var showFullscreenImage = false
+    @State private var fullscreenImage: NSImage?
     @State private var promptDropTarget: PromptDropTarget?
 
     private let inspectorMinWidth: CGFloat = 460
@@ -34,13 +52,13 @@ struct MainView: View {
                 }
                 .background(.ultraThinMaterial)
             }
-            .allowsHitTesting(!showFullscreenImage)
+            .allowsHitTesting(fullscreenImage == nil)
 
-            if showFullscreenImage, let generatedImage = viewModel.lastGeneratedImage {
+            if let fullscreenImage {
                 GeneratedImageFullscreenView(
-                    image: generatedImage,
+                    image: fullscreenImage,
                     closeHint: viewModel.localized("main.fullscreen_hint"),
-                    onClose: { showFullscreenImage = false }
+                    onClose: { self.fullscreenImage = nil }
                 )
                 .zIndex(20)
                 .transition(.opacity)
@@ -94,16 +112,9 @@ struct MainView: View {
                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
                 )
 
-            if let image = viewModel.lastGeneratedImage {
-                Image(nsImage: image)
-                    .resizable()
-                    .interpolation(.high)
-                    .aspectRatio(contentMode: .fit)
-                    .padding(56)
-                .padding(24)
-                .onTapGesture {
-                    showFullscreenImage = true
-                }
+            if !viewModel.lastGeneratedImages.isEmpty {
+                previewGrid(images: viewModel.lastGeneratedImages)
+                .padding(18)
             } else {
                 VStack(spacing: 12) {
                     Image(systemName: "photo.artframe")
@@ -124,17 +135,99 @@ struct MainView: View {
         }
     }
 
+    @ViewBuilder
+    private func previewGrid(images: [NSImage]) -> some View {
+        GeometryReader { geometry in
+            let rows = ImagePreviewLayout.rows(for: images.count)
+            let rowSpacing: CGFloat = 8
+            let columnSpacing: CGFloat = 8
+            let rowCount = max(rows.count, 1)
+            let contentHeight = max(0, geometry.size.height - rowSpacing * CGFloat(max(rowCount - 1, 0)))
+            let rowHeight = contentHeight / CGFloat(rowCount)
+            let twoColumnWidth = max(0, (geometry.size.width - columnSpacing) / 2)
+
+            VStack(spacing: rowSpacing) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                    HStack(spacing: columnSpacing) {
+                        if row.count == 1, images.count > 1 {
+                            Spacer(minLength: 0)
+                        }
+
+                        ForEach(row, id: \.self) { index in
+                            let width = cardWidth(
+                                totalImageCount: images.count,
+                                rowImageCount: row.count,
+                                availableWidth: geometry.size.width,
+                                twoColumnWidth: twoColumnWidth
+                            )
+                            previewCard(
+                                image: images[index],
+                                width: width,
+                                height: rowHeight
+                            )
+                        }
+
+                        if row.count == 1, images.count > 1 {
+                            Spacer(minLength: 0)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, minHeight: rowHeight, maxHeight: rowHeight)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        }
+    }
+
+    @ViewBuilder
+    private func previewCard(image: NSImage, width: CGFloat, height: CGFloat) -> some View {
+        Image(nsImage: image)
+            .resizable()
+            .interpolation(.high)
+            .aspectRatio(contentMode: .fit)
+            .padding(10)
+            .frame(width: width, height: height)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.black.opacity(0.18))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    )
+            )
+            .contentShape(Rectangle())
+            .onTapGesture {
+                fullscreenImage = image
+            }
+    }
+
+    private func cardWidth(
+        totalImageCount: Int,
+        rowImageCount: Int,
+        availableWidth: CGFloat,
+        twoColumnWidth: CGFloat
+    ) -> CGFloat {
+        if totalImageCount == 1 {
+            return max(0, availableWidth)
+        }
+        if rowImageCount == 1 {
+            return twoColumnWidth
+        }
+        return twoColumnWidth
+    }
+
     private var outputPanel: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label(viewModel.localized("main.last_output"), systemImage: "photo.badge.checkmark")
                 .font(.headline)
                 .foregroundStyle(.white.opacity(0.92))
 
-            if let outputPath = viewModel.lastOutputPath {
-                Text(outputPath)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
+            if !viewModel.lastOutputPaths.isEmpty {
+                ForEach(viewModel.lastOutputPaths, id: \.self) { outputPath in
+                    Text(outputPath)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
 
                 Button(viewModel.localized("action.show_in_finder")) {
                     viewModel.revealLastOutputInFinder()
@@ -414,6 +507,29 @@ struct MainView: View {
 
                         Slider(value: aspectRatioSliderBinding, in: 0...Double(aspectRatioOptions.count - 1), step: 1)
                             .tint(.blue)
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(viewModel.localized("main.image_count"))
+                                .font(.title3.weight(.medium))
+                            Spacer()
+                            Text(viewModel.imageCountValueLabel)
+                                .font(.title3.weight(.medium))
+                                .foregroundStyle(.white.opacity(0.90))
+                        }
+
+                        Slider(
+                            value: Binding(
+                                get: { viewModel.imageCountSliderValue },
+                                set: { viewModel.imageCountSliderValue = $0 }
+                            ),
+                            in: 1...4,
+                            step: 1
+                        )
+                        .tint(.blue)
                     }
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))

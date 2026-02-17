@@ -56,7 +56,8 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
 
 МОЙ ОРИГИНАЛЬНЫЙ ПРОМПТ:
 """
-    static let defaultRequestTimeoutSec = 120
+    static let legacyDefaultRequestTimeoutSec = 120
+    static let defaultRequestTimeoutSec = 180
     static let defaultNetworkPolicyVersion = 1
 
     var apiKey: String

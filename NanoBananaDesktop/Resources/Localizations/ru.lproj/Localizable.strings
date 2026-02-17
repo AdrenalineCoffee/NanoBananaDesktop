@@ -16,6 +16,7 @@
 "main.model_custom" = "Пользовательская: %@";
 "main.resolution" = "Разрешение";
 "main.aspect_ratio" = "Соотношение сторон";
+"main.image_count" = "Количество изображений";
 "main.aspect_ratio_auto" = "Авто (из исходника / 1:1)";
 "main.aspect_ratio_auto_short" = "Авто";
 "main.aspect_ratio_auto_value" = "Авто использует %@";
@@ -111,6 +112,7 @@
 "action.show_in_finder" = "Показать в Finder";
 
 "status.success_saved" = "Изображение сохранено: %@";
+"status.success_saved_multiple" = "Сохранено изображений: %d";
 "status.prompt_enhanced" = "Промпт успешно улучшен.";
 "status.prompt_from_image_in_progress" = "Генерируем промпт по изображению...";
 "status.prompt_from_image_done" = "Промпт по изображению готов.";

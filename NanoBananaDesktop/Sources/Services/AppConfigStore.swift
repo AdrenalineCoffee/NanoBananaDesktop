@@ -112,7 +112,14 @@ final class AppConfigStore {
             outputDirectory = candidateOutput
         }
 
-        let timeout = (10...600).contains(config.requestTimeoutSec) ? config.requestTimeoutSec : AppConfig.defaultRequestTimeoutSec
+        let timeout: Int
+        if config.requestTimeoutSec == AppConfig.legacyDefaultRequestTimeoutSec {
+            timeout = AppConfig.defaultRequestTimeoutSec
+        } else if (10...600).contains(config.requestTimeoutSec) {
+            timeout = config.requestTimeoutSec
+        } else {
+            timeout = AppConfig.defaultRequestTimeoutSec
+        }
         let normalizedProxyPort = (1...65535).contains(config.proxyPort) ? config.proxyPort : defaults.proxyPort
 
         let normalizedNoProxyHosts = config.noProxyHosts

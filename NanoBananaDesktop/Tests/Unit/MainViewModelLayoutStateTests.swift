@@ -29,6 +29,23 @@ func resolutionSliderMapsToSelectionAndLabel() throws {
 
 @Test
 @MainActor
+func imageCountSliderMapsToRangeOneToFour() throws {
+    let viewModel = try makeMainViewModel()
+
+    viewModel.imageCountSliderValue = 1
+    #expect(viewModel.imageCountSelection == 1)
+    #expect(viewModel.imageCountValueLabel == "1")
+
+    viewModel.imageCountSliderValue = 3
+    #expect(viewModel.imageCountSelection == 3)
+    #expect(viewModel.imageCountValueLabel == "3")
+
+    viewModel.imageCountSliderValue = 8
+    #expect(viewModel.imageCountSelection == 4)
+}
+
+@Test
+@MainActor
 func canEnhancePromptDependsOnPromptAndLoadingState() throws {
     let viewModel = try makeMainViewModel()
 

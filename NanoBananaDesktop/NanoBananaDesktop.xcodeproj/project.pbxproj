@@ -9,6 +9,14 @@
 /* Begin PBXBuildFile section */
 		08B4C3C270E5CC482EE342D5 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 4B8595650183AD07C6B97D8B /* Localizable.strings */; };
 		0B163EA3CD28EE60BF306871 /* ImageResolution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B1F305462E9EF791636353 /* ImageResolution.swift */; };
+		0D1E3F1B2C4E5A6B7C8D9E01 /* AttachedImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1D3F1B2C4E5A6B7C8D9E01 /* AttachedImage.swift */; };
+		0D1E3F1B2C4E5A6B7C8D9E02 /* ImageAspectRatio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1D3F1B2C4E5A6B7C8D9E02 /* ImageAspectRatio.swift */; };
+		0D1E3F1B2C4E5A6B7C8D9E03 /* ModelCatalogItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1D3F1B2C4E5A6B7C8D9E03 /* ModelCatalogItem.swift */; };
+		0D1E3F1B2C4E5A6B7C8D9E04 /* AttachmentMentionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1D3F1B2C4E5A6B7C8D9E04 /* AttachmentMentionService.swift */; };
+		0D1E3F1B2C4E5A6B7C8D9E05 /* GeminiModelCatalogClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1D3F1B2C4E5A6B7C8D9E05 /* GeminiModelCatalogClient.swift */; };
+		0D1E3F1B2C4E5A6B7C8D9E06 /* HistoryThumbnailLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1D3F1B2C4E5A6B7C8D9E06 /* HistoryThumbnailLoader.swift */; };
+		0D1E3F1B2C4E5A6B7C8D9E07 /* GeneratedImageFullscreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1D3F1B2C4E5A6B7C8D9E07 /* GeneratedImageFullscreenView.swift */; };
+		0D1E3F1B2C4E5A6B7C8D9E08 /* PromptTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1D3F1B2C4E5A6B7C8D9E08 /* PromptTextEditor.swift */; };
 		2394A7B0AD57D5747BBE536F /* AppConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E04FC65DC3615EA8E87A6D0 /* AppConfigStore.swift */; };
 		2875CFBEE04626C7E5A8437C /* NanoBananaDesktopApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2E617228EB44A631B8D4006 /* NanoBananaDesktopApp.swift */; };
 		2CD8CCCDA98DEE27C6C127BA /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EEB4F8DC2A8C135E3926C95 /* Localization.swift */; };
@@ -50,6 +58,14 @@
 		68C6D40FDDE0669A0BD5AAF5 /* ResolutionSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResolutionSelection.swift; sourceTree = "<group>"; };
 		6D565B4D6048AEC8A8905718 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		7D2882E8F875AAEABF4333B9 /* AppLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
+		9A1D3F1B2C4E5A6B7C8D9E01 /* AttachedImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachedImage.swift; sourceTree = "<group>"; };
+		9A1D3F1B2C4E5A6B7C8D9E02 /* ImageAspectRatio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageAspectRatio.swift; sourceTree = "<group>"; };
+		9A1D3F1B2C4E5A6B7C8D9E03 /* ModelCatalogItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelCatalogItem.swift; sourceTree = "<group>"; };
+		9A1D3F1B2C4E5A6B7C8D9E04 /* AttachmentMentionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentMentionService.swift; sourceTree = "<group>"; };
+		9A1D3F1B2C4E5A6B7C8D9E05 /* GeminiModelCatalogClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiModelCatalogClient.swift; sourceTree = "<group>"; };
+		9A1D3F1B2C4E5A6B7C8D9E06 /* HistoryThumbnailLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryThumbnailLoader.swift; sourceTree = "<group>"; };
+		9A1D3F1B2C4E5A6B7C8D9E07 /* GeneratedImageFullscreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedImageFullscreenView.swift; sourceTree = "<group>"; };
+		9A1D3F1B2C4E5A6B7C8D9E08 /* PromptTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptTextEditor.swift; sourceTree = "<group>"; };
 		840E73F9C24236F208C0D6C7 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		86189ECF13D2E41E8BF7ACC0 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
 		A81C14EB4712CE8B093A8EC3 /* FileIO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileIO.swift; sourceTree = "<group>"; };
@@ -73,10 +89,13 @@
 				AE121FDF031CC1E81D5C4004 /* AppConfig.swift */,
 				3728CED7FEE491F383E2B009 /* AppError.swift */,
 				7D2882E8F875AAEABF4333B9 /* AppLanguage.swift */,
+				9A1D3F1B2C4E5A6B7C8D9E01 /* AttachedImage.swift */,
 				678ED4725C58185E0250FDE3 /* GenerationMode.swift */,
 				E0D336805BCAC309C2B5A5B6 /* GenerationRequest.swift */,
 				1EA1B362C80ED4AA7C9DC1D4 /* HistoryRecord.swift */,
+				9A1D3F1B2C4E5A6B7C8D9E02 /* ImageAspectRatio.swift */,
 				38B1F305462E9EF791636353 /* ImageResolution.swift */,
+				9A1D3F1B2C4E5A6B7C8D9E03 /* ModelCatalogItem.swift */,
 				B66B25E136709B35A118017E /* ProxyModels.swift */,
 				68C6D40FDDE0669A0BD5AAF5 /* ResolutionSelection.swift */,
 			);
@@ -87,8 +106,6 @@
 			isa = PBXGroup;
 			children = (
 				7C67893F5CB02203AF3AF381 /* NanoBananaDesktop */,
-				8EF03ECF2464B659FB288A17 /* Resources */,
-				878DF98BBD87D74739456223 /* Sources */,
 				FF83BB5E5F214344FBF64186 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -98,10 +115,13 @@
 			children = (
 				3E04FC65DC3615EA8E87A6D0 /* AppConfigStore.swift */,
 				294475AFB80CE1BE2CA5A384 /* AppDirectories.swift */,
+				9A1D3F1B2C4E5A6B7C8D9E04 /* AttachmentMentionService.swift */,
 				A81C14EB4712CE8B093A8EC3 /* FileIO.swift */,
 				4427C09AA0E5D29A680717CB /* FilenameGenerator.swift */,
 				BDD6C032BE0A7033F72EBC09 /* GeminiAPIClient.swift */,
+				9A1D3F1B2C4E5A6B7C8D9E05 /* GeminiModelCatalogClient.swift */,
 				F5F01DEAF67A889A975D11EF /* HistoryStore.swift */,
+				9A1D3F1B2C4E5A6B7C8D9E06 /* HistoryThumbnailLoader.swift */,
 				6489B5DA01C3E8A7BABD2B1F /* ImagePersistenceService.swift */,
 				0EEB4F8DC2A8C135E3926C95 /* Localization.swift */,
 				415F3A3C69A7FE7B599A5AD4 /* PromptResolutionMapper.swift */,
@@ -143,8 +163,10 @@
 		AF13E9A60FE67844F1FD19FB /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				9A1D3F1B2C4E5A6B7C8D9E07 /* GeneratedImageFullscreenView.swift */,
 				840E73F9C24236F208C0D6C7 /* HistoryView.swift */,
 				86189ECF13D2E41E8BF7ACC0 /* MainView.swift */,
+				9A1D3F1B2C4E5A6B7C8D9E08 /* PromptTextEditor.swift */,
 				BB83DA8D3D72D1E5B5E0E42E /* RootView.swift */,
 				6D565B4D6048AEC8A8905718 /* SettingsView.swift */,
 			);
@@ -246,20 +268,28 @@
 				3E424875359C5B888FD3E61E /* AppDirectories.swift in Sources */,
 				574C28470341D49396857A45 /* AppError.swift in Sources */,
 				C9998BCFFA644EC3C90CB9EE /* AppLanguage.swift in Sources */,
+				0D1E3F1B2C4E5A6B7C8D9E01 /* AttachedImage.swift in Sources */,
+				0D1E3F1B2C4E5A6B7C8D9E04 /* AttachmentMentionService.swift in Sources */,
 				C271E348F675664C9B4083FE /* FileIO.swift in Sources */,
 				D6F6A6923056629ACA198BB3 /* FilenameGenerator.swift in Sources */,
 				B60E437BB5DC7E261CA4E166 /* GeminiAPIClient.swift in Sources */,
+				0D1E3F1B2C4E5A6B7C8D9E05 /* GeminiModelCatalogClient.swift in Sources */,
+				0D1E3F1B2C4E5A6B7C8D9E07 /* GeneratedImageFullscreenView.swift in Sources */,
 				7E0FBA5F23A964DE156C9238 /* GenerationMode.swift in Sources */,
 				3BCB6874E3A7C2BA6117D70E /* GenerationRequest.swift in Sources */,
 				7C92DE9D91ADF00778F33825 /* HistoryRecord.swift in Sources */,
 				D3A03BC986F7799013EA6DD1 /* HistoryStore.swift in Sources */,
+				0D1E3F1B2C4E5A6B7C8D9E06 /* HistoryThumbnailLoader.swift in Sources */,
 				AE0D17162AD1F8519D41585E /* HistoryView.swift in Sources */,
+				0D1E3F1B2C4E5A6B7C8D9E02 /* ImageAspectRatio.swift in Sources */,
 				8D0A0BA10375420B7183757B /* ImagePersistenceService.swift in Sources */,
 				0B163EA3CD28EE60BF306871 /* ImageResolution.swift in Sources */,
 				2CD8CCCDA98DEE27C6C127BA /* Localization.swift in Sources */,
 				7B6DC5B87D80378A037422B9 /* MainView.swift in Sources */,
 				A07918F5F21171201A72872A /* MainViewModel.swift in Sources */,
+				0D1E3F1B2C4E5A6B7C8D9E03 /* ModelCatalogItem.swift in Sources */,
 				2875CFBEE04626C7E5A8437C /* NanoBananaDesktopApp.swift in Sources */,
+				0D1E3F1B2C4E5A6B7C8D9E08 /* PromptTextEditor.swift in Sources */,
 				418191B8819F6EF17CAE9875 /* PromptResolutionMapper.swift in Sources */,
 				D3BC726C5FD2E4DD058D0213 /* ProxyModels.swift in Sources */,
 				4B9B562AD83287E31C1F07D3 /* ProxySessionFactory.swift in Sources */,

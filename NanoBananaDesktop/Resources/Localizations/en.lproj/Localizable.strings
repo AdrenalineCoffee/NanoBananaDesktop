@@ -16,6 +16,7 @@
 "main.model_custom" = "Custom: %@";
 "main.resolution" = "Resolution";
 "main.aspect_ratio" = "Aspect ratio";
+"main.image_count" = "Image count";
 "main.aspect_ratio_auto" = "Auto (source / 1:1)";
 "main.aspect_ratio_auto_short" = "Auto";
 "main.aspect_ratio_auto_value" = "Auto uses %@";
@@ -111,6 +112,7 @@
 "action.show_in_finder" = "Show in Finder";
 
 "status.success_saved" = "Image saved: %@";
+"status.success_saved_multiple" = "Images saved: %d";
 "status.prompt_enhanced" = "Prompt updated successfully.";
 "status.prompt_from_image_in_progress" = "Generating prompt from image...";
 "status.prompt_from_image_done" = "Prompt from image is ready.";

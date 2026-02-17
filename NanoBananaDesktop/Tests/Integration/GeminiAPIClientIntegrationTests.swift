@@ -276,6 +276,118 @@ func generateImageMapsProxyAuthError() async throws {
 }
 
 @Test
+func generateImagesBatchCreatesRequestedCountAndParsesAllImages() async throws {
+    let apiKey = "key-batch-multi"
+    let session = makeSession()
+    let client = GeminiAPIClient()
+    var statusRequests = 0
+
+    MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
+        let url = try #require(request.url)
+        let path = url.path
+
+        if path.contains(":batchGenerateContent") {
+            let body = try #require(requestBody(from: request))
+            let payload = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let batch = try #require(payload["batch"] as? [String: Any])
+            let inputConfig = try #require(batch["inputConfig"] as? [String: Any])
+            let requestsContainer = try #require(inputConfig["requests"] as? [String: Any])
+            let requests = try #require(requestsContainer["requests"] as? [[String: Any]])
+            #expect(requests.count == 3)
+
+            let createJSON: [String: Any] = [
+                "name": "batches/batch-multi",
+                "done": false,
+                "metadata": ["state": "BATCH_STATE_PENDING"]
+            ]
+            let responseData = try JSONSerialization.data(withJSONObject: createJSON)
+            let response = HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, responseData)
+        }
+
+        if path.contains("/v1beta/batches/") {
+            statusRequests += 1
+            let done = statusRequests > 1
+            let state = done ? "BATCH_STATE_SUCCEEDED" : "BATCH_STATE_RUNNING"
+            let responses: [[String: Any]] = [
+                [
+                    "response": [
+                        "candidates": [[
+                            "content": [
+                                "parts": [["inlineData": ["mimeType": "image/png", "data": "YWJj"]]]
+                            ]
+                        ]]
+                    ]
+                ],
+                [
+                    "response": [
+                        "candidates": [[
+                            "content": [
+                                "parts": [["inlineData": ["mimeType": "image/png", "data": "ZGVm"]]]
+                            ]
+                        ]]
+                    ]
+                ],
+                [
+                    "response": [
+                        "candidates": [[
+                            "content": [
+                                "parts": [["inlineData": ["mimeType": "image/png", "data": "Z2hp"]]]
+                            ]
+                        ]]
+                    ]
+                ]
+            ]
+
+            let statusJSON: [String: Any] = [
+                "name": "batches/batch-multi",
+                "done": done,
+                "metadata": ["state": state],
+                "response": done ? ["inlinedResponses": responses] : [:]
+            ]
+            let responseData = try JSONSerialization.data(withJSONObject: statusJSON)
+            let response = HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, responseData)
+        }
+
+        throw URLError(.unsupportedURL)
+    }
+
+    let request = GenerationRequest(
+        mode: .generate,
+        prompt: "test batch",
+        model: AppConfig.defaultModel,
+        apiKey: apiKey,
+        resolution: .k1,
+        aspectRatio: .square,
+        inputImages: [],
+        imageCount: 3
+    )
+
+    let result = try await client.generateImagesBatch(
+        request: request,
+        timeoutSec: 30,
+        session: session,
+        route: .proxy
+    )
+
+    #expect(result.images.count == 3)
+    #expect(result.imageDatas == [Data("abc".utf8), Data("def".utf8), Data("ghi".utf8)])
+
+    MockURLProtocol.removeHandler(forAPIKey: apiKey)
+}
+
+@Test
 func generateTextReturnsFirstTextPart() async throws {
     let apiKey = "key-text-success"
     let session = makeSession()

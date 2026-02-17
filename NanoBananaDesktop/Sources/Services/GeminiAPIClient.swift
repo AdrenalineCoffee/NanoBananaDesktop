@@ -40,11 +40,13 @@ actor GeminiAPIClient {
     }
 
     private let baseURL: URL
+    private let batchPollIntervalNanos: UInt64 = 1_500_000_000
 
     init(baseURL: URL = URL(string: "https://generativelanguage.googleapis.com")!) {
         self.baseURL = baseURL
     }
 
+    // Legacy direct generateContent path (kept for compatibility and tests)
     func generateImage(
         request: GenerationRequest,
         timeoutSec: Int,
@@ -100,6 +102,65 @@ actor GeminiAPIClient {
         }
 
         throw AppError.invalidResponse
+    }
+
+    // Batch API path for multi-image generation
+    func generateImagesBatch(
+        request: GenerationRequest,
+        timeoutSec: Int,
+        session: URLSession,
+        route: NetworkRoute
+    ) async throws -> GenerationResult {
+        let prompt = request.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !prompt.isEmpty else {
+            throw AppError.emptyPrompt
+        }
+
+        let apiKey = request.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !apiKey.isEmpty else {
+            throw AppError.missingAPIKey
+        }
+
+        let sanitizedModel = request.model.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sanitizedModel.isEmpty else {
+            throw AppError.invalidConfiguration("Model cannot be empty")
+        }
+
+        let imageCount = min(max(request.imageCount, 1), 4)
+        let operationTimeoutSec = effectiveBatchOperationTimeoutSec(
+            baseTimeoutSec: timeoutSec,
+            imageCount: imageCount
+        )
+        let endpoint = try batchEndpointURL(model: sanitizedModel, apiKey: apiKey)
+        let payload = try batchPayloadData(
+            prompt: prompt,
+            resolution: request.resolution,
+            aspectRatio: request.aspectRatio,
+            inputImages: request.inputImages,
+            imageCount: imageCount
+        )
+
+        var attempts = 0
+        while true {
+            do {
+                return try await executeBatchGeneration(
+                    endpoint: endpoint,
+                    payload: payload,
+                    apiKey: apiKey,
+                    resolution: request.resolution,
+                    timeoutSec: timeoutSec,
+                    operationTimeoutSec: operationTimeoutSec,
+                    session: session,
+                    route: route
+                )
+            } catch {
+                if attempts == 0, isTransient(error: error) {
+                    attempts += 1
+                    continue
+                }
+                throw error
+            }
+        }
     }
 
     func generateText(
@@ -191,6 +252,46 @@ actor GeminiAPIClient {
         return finalURL
     }
 
+    private func batchEndpointURL(model: String, apiKey: String) throws -> URL {
+        let normalizedModel: String
+        if model.lowercased().hasPrefix("models/") {
+            normalizedModel = model
+        } else {
+            normalizedModel = "models/\(model)"
+        }
+
+        let endpointPath = "v1beta/\(normalizedModel):batchGenerateContent"
+        let endpoint = baseURL.appendingPathComponent(endpointPath)
+
+        guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
+            throw AppError.invalidConfiguration("Cannot create batch URL components")
+        }
+        components.queryItems = [URLQueryItem(name: "key", value: apiKey)]
+
+        guard let finalURL = components.url else {
+            throw AppError.invalidConfiguration("Cannot generate batch endpoint URL")
+        }
+
+        return finalURL
+    }
+
+    private func batchStatusURL(batchName: String, apiKey: String) throws -> URL {
+        let trimmedName = batchName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            throw AppError.invalidConfiguration("Batch operation name is empty")
+        }
+
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+        components?.path = "/v1beta/\(trimmedName)"
+        components?.queryItems = [URLQueryItem(name: "key", value: apiKey)]
+
+        guard let finalURL = components?.url else {
+            throw AppError.invalidConfiguration("Cannot generate batch status URL")
+        }
+
+        return finalURL
+    }
+
     private func payloadData(
         prompt: String,
         resolution: ImageResolution,
@@ -198,29 +299,8 @@ actor GeminiAPIClient {
         inputImages: [GenerationInputImage],
         variant: RequestConfigVariant
     ) throws -> Data {
-        var parts: [[String: Any]] = []
-
-        for inputImage in inputImages {
-            parts.append([
-                "inlineData": [
-                    "mimeType": inputImage.mimeType,
-                    "data": inputImage.data.base64EncodedString()
-                ]
-            ])
-        }
-
-        parts.append(["text": prompt])
-
-        let contents: [[String: Any]] = [["parts": parts]]
-        var imageConfig: [String: Any] = ["imageSize": resolution.rawValue]
-        if let aspectRatio {
-            imageConfig["aspectRatio"] = aspectRatio.rawValue
-        }
-
-        let config: [String: Any] = [
-            "responseModalities": ["TEXT", "IMAGE"],
-            "imageConfig": imageConfig
-        ]
+        let contents = buildContents(prompt: prompt, inputImages: inputImages)
+        let config = buildImageGenerationConfig(resolution: resolution, aspectRatio: aspectRatio)
 
         var payload: [String: Any] = ["contents": contents]
 
@@ -275,6 +355,89 @@ actor GeminiAPIClient {
         } catch {
             throw AppError.invalidConfiguration("Failed to build payload: \(error.localizedDescription)")
         }
+    }
+
+    private func batchPayloadData(
+        prompt: String,
+        resolution: ImageResolution,
+        aspectRatio: ImageAspectRatio?,
+        inputImages: [GenerationInputImage],
+        imageCount: Int
+    ) throws -> Data {
+        let boundedImageCount = min(max(imageCount, 1), 4)
+        let generationRequest = buildGenerationRequestObject(
+            prompt: prompt,
+            resolution: resolution,
+            aspectRatio: aspectRatio,
+            inputImages: inputImages
+        )
+
+        let inlinedRequests: [[String: Any]] = (0..<boundedImageCount).map { index in
+            [
+                "request": generationRequest,
+                "metadata": ["key": "request-\(index + 1)"]
+            ]
+        }
+
+        let payload: [String: Any] = [
+            "batch": [
+                "displayName": "nanobanana-desktop-batch",
+                "inputConfig": [
+                    "requests": [
+                        "requests": inlinedRequests
+                    ]
+                ]
+            ]
+        ]
+
+        do {
+            return try JSONSerialization.data(withJSONObject: payload)
+        } catch {
+            throw AppError.invalidConfiguration("Failed to build batch payload: \(error.localizedDescription)")
+        }
+    }
+
+    private func buildGenerationRequestObject(
+        prompt: String,
+        resolution: ImageResolution,
+        aspectRatio: ImageAspectRatio?,
+        inputImages: [GenerationInputImage]
+    ) -> [String: Any] {
+        [
+            "contents": buildContents(prompt: prompt, inputImages: inputImages),
+            "generationConfig": buildImageGenerationConfig(resolution: resolution, aspectRatio: aspectRatio)
+        ]
+    }
+
+    private func buildContents(prompt: String, inputImages: [GenerationInputImage]) -> [[String: Any]] {
+        var parts: [[String: Any]] = []
+
+        for inputImage in inputImages {
+            parts.append([
+                "inlineData": [
+                    "mimeType": inputImage.mimeType,
+                    "data": inputImage.data.base64EncodedString()
+                ]
+            ])
+        }
+
+        parts.append(["text": prompt])
+        return [["parts": parts]]
+    }
+
+    private func buildImageGenerationConfig(
+        resolution: ImageResolution,
+        aspectRatio: ImageAspectRatio?
+    ) -> [String: Any] {
+        var imageConfig: [String: Any] = ["imageSize": resolution.rawValue]
+        if let aspectRatio {
+            imageConfig["aspectRatio"] = aspectRatio.rawValue
+        }
+
+        return [
+            "responseModalities": ["TEXT", "IMAGE"],
+            "imageConfig": imageConfig
+        ]
     }
 
     private func executeForVariant(
@@ -424,34 +587,16 @@ actor GeminiAPIClient {
         session: URLSession,
         route: NetworkRoute
     ) async throws -> GenerationResult {
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.timeoutInterval = TimeInterval(timeoutSec)
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = payload
+        let data = try await executeRequest(
+            endpoint: endpoint,
+            method: "POST",
+            payload: payload,
+            timeoutSec: timeoutSec,
+            session: session,
+            route: route
+        )
 
-        let data: Data
-        let response: URLResponse
-
-        do {
-            (data, response) = try await session.data(for: request)
-        } catch let urlError as URLError {
-            throw mapURLError(urlError, route: route)
-        } catch {
-            throw route == .proxy
-                ? AppError.proxyConnectionFailed(error.localizedDescription)
-                : AppError.network(error.localizedDescription)
-        }
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw AppError.invalidResponse
-        }
-
-        guard (200...299).contains(httpResponse.statusCode) else {
-            throw mapHTTPError(statusCode: httpResponse.statusCode, data: data, route: route)
-        }
-
-        return try parseSuccessfulResponse(data: data, resolution: resolution)
+        return try parseSuccessfulResponse(data: data, resolution: resolution, route: route)
     }
 
     private func executeTextOnce(
@@ -461,8 +606,254 @@ actor GeminiAPIClient {
         session: URLSession,
         route: NetworkRoute
     ) async throws -> String {
+        let data = try await executeRequest(
+            endpoint: endpoint,
+            method: "POST",
+            payload: payload,
+            timeoutSec: timeoutSec,
+            session: session,
+            route: route
+        )
+
+        return try parseSuccessfulTextResponse(data: data, route: route)
+    }
+
+    private func executeBatchGeneration(
+        endpoint: URL,
+        payload: Data,
+        apiKey: String,
+        resolution: ImageResolution,
+        timeoutSec: Int,
+        operationTimeoutSec: Int,
+        session: URLSession,
+        route: NetworkRoute
+    ) async throws -> GenerationResult {
+        let createData = try await executeRequest(
+            endpoint: endpoint,
+            method: "POST",
+            payload: payload,
+            timeoutSec: timeoutSec,
+            session: session,
+            route: route
+        )
+
+        let operation = try parseJSONObject(from: createData)
+
+        if let immediate = try parseBatchResultFromOperation(
+            operation,
+            resolution: resolution,
+            route: route
+        ) {
+            return immediate
+        }
+
+        guard let operationName = operation["name"] as? String,
+              !operationName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw AppError.invalidResponse
+        }
+
+        let deadline = Date().addingTimeInterval(TimeInterval(operationTimeoutSec))
+        while true {
+            if Date() >= deadline {
+                throw AppError.timeout
+            }
+
+            try await Task.sleep(nanoseconds: batchPollIntervalNanos)
+
+            let statusURL = try batchStatusURL(batchName: operationName, apiKey: apiKey)
+            let statusData = try await executeRequest(
+                endpoint: statusURL,
+                method: "GET",
+                payload: nil,
+                timeoutSec: timeoutSec,
+                session: session,
+                route: route
+            )
+
+            let statusOperation = try parseJSONObject(from: statusData)
+            if let result = try parseBatchResultFromOperation(
+                statusOperation,
+                resolution: resolution,
+                route: route
+            ) {
+                return result
+            }
+        }
+    }
+
+    private func parseBatchResultFromOperation(
+        _ operation: [String: Any],
+        resolution: ImageResolution,
+        route: NetworkRoute
+    ) throws -> GenerationResult? {
+        if let operationError = operation["error"] as? [String: Any] {
+            throw mapStatusObject(operationError, route: route)
+        }
+
+        let state = batchState(from: operation)
+        if isBatchFailureState(state) {
+            if let response = operation["response"] as? [String: Any],
+               let responseError = response["error"] as? [String: Any] {
+                throw mapStatusObject(responseError, route: route)
+            }
+            throw AppError.invalidConfiguration("Batch finished with state \(state ?? "UNKNOWN")")
+        }
+
+        let done = operation["done"] as? Bool ?? false
+        let shouldParseOutput = done || isBatchSuccessState(state)
+        guard shouldParseOutput else {
+            return nil
+        }
+
+        let inlinedResponses = extractInlinedResponses(from: operation)
+        guard !inlinedResponses.isEmpty else {
+            throw AppError.noImageInResponse
+        }
+
+        return try parseInlinedBatchResponses(
+            inlinedResponses,
+            resolution: resolution,
+            route: route
+        )
+    }
+
+    private func parseInlinedBatchResponses(
+        _ inlinedResponses: [[String: Any]],
+        resolution: ImageResolution,
+        route: NetworkRoute
+    ) throws -> GenerationResult {
+        var allImages: [GeneratedImageResult] = []
+        var firstError: AppError?
+
+        for responseObject in inlinedResponses {
+            if let errorObject = responseObject["error"] as? [String: Any] {
+                if firstError == nil {
+                    firstError = mapStatusObject(errorObject, route: route)
+                }
+                continue
+            }
+
+            guard let rawResponse = responseObject["response"] as? [String: Any] else {
+                continue
+            }
+
+            let responseData: Data
+            do {
+                responseData = try JSONSerialization.data(withJSONObject: rawResponse)
+            } catch {
+                throw AppError.decodingError
+            }
+
+            let parsed = try parseSuccessfulResponse(data: responseData, resolution: resolution, route: route)
+            allImages.append(contentsOf: parsed.images)
+        }
+
+        if allImages.isEmpty {
+            if let firstError {
+                throw firstError
+            }
+            throw AppError.noImageInResponse
+        }
+
+        return GenerationResult(images: allImages, usedResolution: resolution)
+    }
+
+    private func extractInlinedResponses(from object: [String: Any]) -> [[String: Any]] {
+        if let list = object["inlinedResponses"] as? [[String: Any]] {
+            return list
+        }
+
+        if let wrappedList = object["inlinedResponses"] as? [String: Any],
+           let nested = wrappedList["inlinedResponses"] as? [[String: Any]] {
+            return nested
+        }
+
+        if let response = object["response"] as? [String: Any] {
+            let nested = extractInlinedResponses(from: response)
+            if !nested.isEmpty {
+                return nested
+            }
+        }
+
+        if let output = object["output"] as? [String: Any] {
+            let nested = extractInlinedResponses(from: output)
+            if !nested.isEmpty {
+                return nested
+            }
+        }
+
+        if let dest = object["dest"] as? [String: Any] {
+            let nested = extractInlinedResponses(from: dest)
+            if !nested.isEmpty {
+                return nested
+            }
+        }
+
+        return []
+    }
+
+    private func parseJSONObject(from data: Data) throws -> [String: Any] {
+        do {
+            let object = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+            guard let dictionary = object as? [String: Any] else {
+                throw AppError.decodingError
+            }
+            return dictionary
+        } catch let appError as AppError {
+            throw appError
+        } catch {
+            throw AppError.decodingError
+        }
+    }
+
+    private func batchState(from operation: [String: Any]) -> String? {
+        guard let metadata = operation["metadata"] as? [String: Any] else {
+            return nil
+        }
+
+        if let state = metadata["state"] as? String {
+            return state
+        }
+
+        if let state = metadata["batchState"] as? String {
+            return state
+        }
+
+        if let state = metadata["jobState"] as? String {
+            return state
+        }
+
+        return nil
+    }
+
+    private func isBatchSuccessState(_ state: String?) -> Bool {
+        guard let normalized = state?.uppercased(), !normalized.isEmpty else {
+            return false
+        }
+        return normalized.contains("SUCCEEDED") || normalized.contains("SUCCESS")
+    }
+
+    private func isBatchFailureState(_ state: String?) -> Bool {
+        guard let normalized = state?.uppercased(), !normalized.isEmpty else {
+            return false
+        }
+
+        return normalized.contains("FAILED") ||
+            normalized.contains("CANCELLED") ||
+            normalized.contains("CANCELED") ||
+            normalized.contains("EXPIRED")
+    }
+
+    private func executeRequest(
+        endpoint: URL,
+        method: String,
+        payload: Data?,
+        timeoutSec: Int,
+        session: URLSession,
+        route: NetworkRoute
+    ) async throws -> Data {
         var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
+        request.httpMethod = method
         request.timeoutInterval = TimeInterval(timeoutSec)
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = payload
@@ -488,10 +879,14 @@ actor GeminiAPIClient {
             throw mapHTTPError(statusCode: httpResponse.statusCode, data: data, route: route)
         }
 
-        return try parseSuccessfulTextResponse(data: data, route: route)
+        return data
     }
 
-    private func parseSuccessfulResponse(data: Data, resolution: ImageResolution) throws -> GenerationResult {
+    private func parseSuccessfulResponse(
+        data: Data,
+        resolution: ImageResolution,
+        route: NetworkRoute
+    ) throws -> GenerationResult {
         let decoder = JSONDecoder()
 
         let decoded: APIResponse
@@ -502,35 +897,37 @@ actor GeminiAPIClient {
         }
 
         if let errorPayload = decoded.error {
-            throw mapAPIError(statusCode: errorPayload.code ?? 0, message: errorPayload.message, route: .proxy)
+            throw mapAPIError(statusCode: errorPayload.code ?? 0, message: errorPayload.message, route: route)
         }
 
-        var firstImage: Data?
-        var textFragments: [String] = []
+        var images: [GeneratedImageResult] = []
 
         for candidate in decoded.candidates ?? [] {
+            var candidateText: [String] = []
+            var candidateImages: [Data] = []
+
             for part in candidate.content?.parts ?? [] {
                 if let text = part.text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
-                    textFragments.append(text)
+                    candidateText.append(text)
                 }
 
-                if firstImage == nil,
-                   let rawBase64 = part.inlineData?.data,
+                if let rawBase64 = part.inlineData?.data,
                    let decodedImage = Data(base64Encoded: rawBase64, options: [.ignoreUnknownCharacters]) {
-                    firstImage = decodedImage
+                    candidateImages.append(decodedImage)
                 }
+            }
+
+            let mergedText = candidateText.isEmpty ? nil : candidateText.joined(separator: "\n")
+            for imageData in candidateImages {
+                images.append(GeneratedImageResult(imageData: imageData, modelText: mergedText))
             }
         }
 
-        guard let imageData = firstImage else {
+        guard !images.isEmpty else {
             throw AppError.noImageInResponse
         }
 
-        return GenerationResult(
-            imageData: imageData,
-            modelText: textFragments.isEmpty ? nil : textFragments.joined(separator: "\n"),
-            usedResolution: resolution
-        )
+        return GenerationResult(images: images, usedResolution: resolution)
     }
 
     private func parseSuccessfulTextResponse(data: Data, route: NetworkRoute) throws -> String {
@@ -556,6 +953,28 @@ actor GeminiAPIClient {
         }
 
         throw AppError.noTextInResponse
+    }
+
+    private func mapStatusObject(_ status: [String: Any], route: NetworkRoute) -> AppError {
+        let code: Int
+        if let intCode = status["code"] as? Int {
+            code = intCode
+        } else if let stringCode = status["code"] as? String, let intCode = Int(stringCode) {
+            code = intCode
+        } else {
+            code = 0
+        }
+
+        let message = status["message"] as? String
+
+        if code <= 0 {
+            if let message, !message.isEmpty {
+                return .invalidConfiguration(message)
+            }
+            return .invalidResponse
+        }
+
+        return mapAPIError(statusCode: code, message: message, route: route)
     }
 
     private func mapHTTPError(statusCode: Int, data: Data, route: NetworkRoute) -> AppError {
@@ -642,6 +1061,15 @@ actor GeminiAPIClient {
         }
 
         return false
+    }
+
+    private func effectiveBatchOperationTimeoutSec(baseTimeoutSec: Int, imageCount: Int) -> Int {
+        let safeBase = max(baseTimeoutSec, 30)
+        let boundedCount = min(max(imageCount, 1), 4)
+
+        // Batch jobs can queue longer than direct generateContent calls.
+        // Scale total wait time by image count to avoid premature timeout.
+        return min(safeBase * boundedCount, 900)
     }
 
     private func shouldTryPayloadFallback(from error: AppError, variant: RequestConfigVariant) -> Bool {

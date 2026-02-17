@@ -14,23 +14,11 @@ func generateFlowSuccessSavesImageThroughProxyRoute() async throws {
     let client = GeminiAPIClient()
     let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])
 
-    MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
-        let json: [String: Any] = [
-            "candidates": [[
-                "content": [
-                    "parts": [["inlineData": ["mimeType": "image/png", "data": tinyPNGBase64]]]
-                ]
-            ]]
-        ]
-        let responseData = try JSONSerialization.data(withJSONObject: json)
-        let response = HTTPURLResponse(
-            url: try #require(request.url),
-            statusCode: 200,
-            httpVersion: nil,
-            headerFields: nil
-        )!
-        return (response, responseData)
-    }
+    setBatchGenerationHandler(
+        forAPIKey: apiKey,
+        expectedRequestCount: 1,
+        imageBase64s: [tinyPNGBase64]
+    )
 
     let viewModel = await MainActor.run {
         MainViewModel(
@@ -82,23 +70,11 @@ func generateFlowWithMultipleAttachmentsUsesEditMode() async throws {
     let client = GeminiAPIClient()
     let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])
 
-    MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
-        let json: [String: Any] = [
-            "candidates": [[
-                "content": [
-                    "parts": [["inlineData": ["mimeType": "image/png", "data": tinyPNGBase64]]]
-                ]
-            ]]
-        ]
-        let responseData = try JSONSerialization.data(withJSONObject: json)
-        let response = HTTPURLResponse(
-            url: try #require(request.url),
-            statusCode: 200,
-            httpVersion: nil,
-            headerFields: nil
-        )!
-        return (response, responseData)
-    }
+    setBatchGenerationHandler(
+        forAPIKey: apiKey,
+        expectedRequestCount: 1,
+        imageBase64s: [tinyPNGBase64]
+    )
 
     let viewModel = await MainActor.run {
         MainViewModel(
@@ -136,6 +112,60 @@ func generateFlowWithMultipleAttachmentsUsesEditMode() async throws {
 
     let generatedImage = await MainActor.run { viewModel.lastGeneratedImage }
     #expect(generatedImage != nil)
+
+    MockURLProtocol.removeHandler(forAPIKey: apiKey)
+}
+
+@Test
+func generateFlowWithImageCountThreeCreatesThreeOutputsAndHistoryEntries() async throws {
+    let apiKey = "key-image-count-three"
+    let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+
+    let configStore = try AppConfigStore(configURL: tempDirectory.appendingPathComponent("config.json"))
+    let historyStore = try HistoryStore(historyURL: tempDirectory.appendingPathComponent("history.json"))
+    let client = GeminiAPIClient()
+    let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])
+
+    setBatchGenerationHandler(
+        forAPIKey: apiKey,
+        expectedRequestCount: 3,
+        imageBase64s: [tinyPNGBase64, tinyPNGBase64Alt, tinyPNGBase64SecondAlt]
+    )
+
+    let viewModel = await MainActor.run {
+        MainViewModel(
+            configStore: configStore,
+            historyStore: historyStore,
+            apiClient: client,
+            networkClientProvider: networkProvider
+        )
+    }
+
+    await MainActor.run {
+        viewModel.config.apiKey = apiKey
+        viewModel.config.defaultOutputDir = tempDirectory.path
+        viewModel.config.proxyEnabled = true
+        viewModel.config.proxyHost = "proxy.local"
+        viewModel.config.proxyPort = 8080
+        viewModel.prompt = "A robot in city"
+        viewModel.imageCountSelection = 3
+        viewModel.generate()
+    }
+
+    try await waitForGenerationToComplete(viewModel: viewModel)
+
+    let outputPaths = await MainActor.run { viewModel.lastOutputPaths }
+    #expect(outputPaths.count == 3)
+    #expect(outputPaths.allSatisfy { FileManager.default.fileExists(atPath: $0) })
+
+    let previewImages = await MainActor.run { viewModel.lastGeneratedImages }
+    #expect(previewImages.count == 3)
+
+    let historyItems = await MainActor.run { viewModel.history }
+    #expect(historyItems.count == 3)
+    #expect(historyItems.allSatisfy { $0.status == .success })
 
     MockURLProtocol.removeHandler(forAPIKey: apiKey)
 }
@@ -401,23 +431,11 @@ func generateFlowAllowsDirectFallbackWhenEnabled() async throws {
 
     let failingProxyThenDirectProvider = ProxyFirstThenDirectProvider(protocolClasses: [MockURLProtocol.self])
 
-    MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
-        let json: [String: Any] = [
-            "candidates": [[
-                "content": [
-                    "parts": [["inlineData": ["mimeType": "image/png", "data": tinyPNGBase64]]]
-                ]
-            ]]
-        ]
-        let responseData = try JSONSerialization.data(withJSONObject: json)
-        let response = HTTPURLResponse(
-            url: try #require(request.url),
-            statusCode: 200,
-            httpVersion: nil,
-            headerFields: nil
-        )!
-        return (response, responseData)
-    }
+    setBatchGenerationHandler(
+        forAPIKey: apiKey,
+        expectedRequestCount: 1,
+        imageBase64s: [tinyPNGBase64]
+    )
 
     let viewModel = await MainActor.run {
         MainViewModel(
@@ -916,7 +934,90 @@ private func waitForPromptFromImageComplete(viewModel: MainViewModel) async thro
     Issue.record("Prompt-from-image generation did not complete in time")
 }
 
+private func setBatchGenerationHandler(
+    forAPIKey apiKey: String,
+    expectedRequestCount: Int,
+    imageBase64s: [String]
+) {
+    var statusRequests = 0
+
+    MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
+        let url = try #require(request.url)
+        let path = url.path
+
+        if path.contains(":batchGenerateContent") {
+            let body = try #require(requestBody(from: request))
+            let payload = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let batch = try #require(payload["batch"] as? [String: Any])
+            let inputConfig = try #require(batch["inputConfig"] as? [String: Any])
+            let requestsContainer = try #require(inputConfig["requests"] as? [String: Any])
+            let requests = try #require(requestsContainer["requests"] as? [[String: Any]])
+            #expect(requests.count == expectedRequestCount)
+
+            let createJSON: [String: Any] = [
+                "name": "batches/\(apiKey)-operation",
+                "done": false,
+                "metadata": [
+                    "state": "BATCH_STATE_PENDING"
+                ]
+            ]
+            let responseData = try JSONSerialization.data(withJSONObject: createJSON)
+            let response = HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, responseData)
+        }
+
+        if path.contains("/v1beta/batches/") {
+            statusRequests += 1
+
+            let responses: [[String: Any]] = imageBase64s.enumerated().map { index, base64 in
+                [
+                    "response": [
+                        "candidates": [[
+                            "content": [
+                                "parts": [
+                                    ["text": "image-\(index + 1)"],
+                                    ["inlineData": ["mimeType": "image/png", "data": base64]]
+                                ]
+                            ]
+                        ]]
+                    ],
+                    "metadata": ["key": "request-\(index + 1)"]
+                ]
+            }
+
+            let state = statusRequests == 1 ? "BATCH_STATE_RUNNING" : "BATCH_STATE_SUCCEEDED"
+            let done = statusRequests > 1
+            let statusJSON: [String: Any] = [
+                "name": "batches/\(apiKey)-operation",
+                "done": done,
+                "metadata": [
+                    "state": state
+                ],
+                "response": done ? ["inlinedResponses": responses] : [:]
+            ]
+
+            let responseData = try JSONSerialization.data(withJSONObject: statusJSON)
+            let response = HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, responseData)
+        }
+
+        throw URLError(.unsupportedURL)
+    }
+}
+
 private let tinyPNGBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+2YQAAAAASUVORK5CYII="
+private let tinyPNGBase64Alt = tinyPNGBase64
+private let tinyPNGBase64SecondAlt = tinyPNGBase64
 private let tinyPNGData = Data(base64Encoded: tinyPNGBase64)!
 
 private func requestBody(from request: URLRequest) -> Data? {

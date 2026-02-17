@@ -30,10 +30,29 @@ struct GenerationRequest {
     var resolution: ImageResolution
     var aspectRatio: ImageAspectRatio
     var inputImages: [GenerationInputImage]
+    var imageCount: Int = 1
 }
 
-struct GenerationResult {
+struct GeneratedImageResult: Equatable {
     let imageData: Data
     let modelText: String?
+}
+
+struct GenerationResult: Equatable {
+    let images: [GeneratedImageResult]
     let usedResolution: ImageResolution
+
+    var imageData: Data {
+        images.first?.imageData ?? Data()
+    }
+
+    var imageDatas: [Data] {
+        images.map(\.imageData)
+    }
+
+    var modelText: String? {
+        images
+            .compactMap(\.modelText)
+            .first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
 }

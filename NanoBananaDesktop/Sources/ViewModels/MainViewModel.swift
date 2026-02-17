@@ -21,6 +21,7 @@ final class MainViewModel: ObservableObject {
     @Published var prompt: String = ""
     @Published var resolutionSelection: ResolutionSelection = .k1
     @Published var aspectRatioSelection: AspectRatioSelection = .auto
+    @Published var imageCountSelection: Int = 1
     @Published var isImageSettingsExpanded: Bool = true
     @Published var attachedImages: [AttachedImage] = [] {
         didSet {
@@ -36,7 +37,9 @@ final class MainViewModel: ObservableObject {
     @Published var startupWarning: String?
     @Published var modelResponseText: String?
     @Published var lastOutputPath: String?
+    @Published var lastOutputPaths: [String] = []
     @Published var lastGeneratedImage: NSImage?
+    @Published var lastGeneratedImages: [NSImage] = []
     @Published var availableImageModels: [ModelCatalogItem] = []
     @Published var availableTextModels: [ModelCatalogItem] = []
     @Published var isLoadingModels: Bool = false
@@ -176,6 +179,15 @@ final class MainViewModel: ObservableObject {
         }
     }
 
+    var imageCountSliderValue: Double {
+        get { Double(imageCountSelection) }
+        set { imageCountSelection = min(max(Int(newValue.rounded()), 1), 4) }
+    }
+
+    var imageCountValueLabel: String {
+        "\(imageCountSelection)"
+    }
+
     var resolvedAspectRatio: ImageAspectRatio {
         if let manual = aspectRatioSelection.manualAspectRatio {
             return manual
@@ -196,7 +208,7 @@ final class MainViewModel: ObservableObject {
     }
 
     var hasOutputToReveal: Bool {
-        lastOutputPath != nil
+        !lastOutputPaths.isEmpty
     }
 
     var proxyValidationResult: ProxyValidationResult {
@@ -413,12 +425,12 @@ final class MainViewModel: ObservableObject {
     }
 
     func revealLastOutputInFinder() {
-        guard let lastOutputPath else {
+        guard !lastOutputPaths.isEmpty else {
             return
         }
 
-        let url = URL(fileURLWithPath: lastOutputPath)
-        NSWorkspace.shared.activateFileViewerSelecting([url])
+        let urls = lastOutputPaths.map { URL(fileURLWithPath: $0) }
+        NSWorkspace.shared.activateFileViewerSelecting(urls)
     }
 
     func generate() {
@@ -444,7 +456,6 @@ final class MainViewModel: ObservableObject {
 
         let resolvedResolution = resolutionMapper.resolve(prompt: trimmedPrompt, selection: resolutionSelection)
         let requestAspectRatio = resolvedAspectRatio
-        let filename = filenameGenerator.generateFilename(prompt: trimmedPrompt, outputDirectory: outputDirectory)
 
         let inputImages: [GenerationInputImage]
         do {
@@ -467,7 +478,8 @@ final class MainViewModel: ObservableObject {
             apiKey: apiKey,
             resolution: resolvedResolution,
             aspectRatio: requestAspectRatio,
-            inputImages: inputImages
+            inputImages: inputImages,
+            imageCount: imageCountSelection
         )
 
         let configuredProxySummary: String?
@@ -511,34 +523,66 @@ final class MainViewModel: ObservableObject {
                     result = try await self.performGeneration(request: request, route: primaryRoute)
                 }
 
-                let savedURL = try self.imagePersistenceService.savePNG(
-                    imageData: result.imageData,
-                    filename: filename,
-                    outputDirectory: outputDirectory
-                )
+                var savedURLs: [URL] = []
+                var renderedImages: [NSImage] = []
+
+                for generatedImage in result.images {
+                    let imageFilename = filenameGenerator.generateFilename(
+                        prompt: trimmedPrompt,
+                        outputDirectory: outputDirectory
+                    )
+                    let savedURL = try self.imagePersistenceService.savePNG(
+                        imageData: generatedImage.imageData,
+                        filename: imageFilename,
+                        outputDirectory: outputDirectory
+                    )
+                    savedURLs.append(savedURL)
+
+                    if let image = NSImage(contentsOf: savedURL) {
+                        renderedImages.append(image)
+                    }
+                }
+
+                guard let firstSavedURL = savedURLs.first else {
+                    throw AppError.noImageInResponse
+                }
 
                 let durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
-                self.lastOutputPath = savedURL.path
-                self.lastGeneratedImage = NSImage(contentsOf: savedURL)
-                self.successMessage = self.localized("status.success_saved", savedURL.path)
-                self.modelResponseText = result.modelText
-                self.appendHistory(
-                    HistoryRecord(
-                        mode: modeForHistory,
-                        prompt: trimmedPrompt,
-                        resolution: resolvedResolution,
-                        inputImagePaths: inputPaths,
-                        outputImagePath: savedURL.path,
-                        status: .success,
-                        errorMessage: nil,
-                        durationMs: durationMs,
-                        modelResponseText: result.modelText,
-                        networkRoute: routeUsed,
-                        proxyUsed: primaryRoute == .proxy,
-                        fallbackUsed: fallbackUsed,
-                        proxySummary: configuredProxySummary
+                self.lastOutputPaths = savedURLs.map(\.path)
+                self.lastOutputPath = firstSavedURL.path
+                self.lastGeneratedImages = renderedImages
+                self.lastGeneratedImage = renderedImages.first
+                if savedURLs.count == 1 {
+                    self.successMessage = self.localized("status.success_saved", firstSavedURL.path)
+                } else {
+                    self.successMessage = self.localized("status.success_saved_multiple", savedURLs.count)
+                }
+                let mergedModelText = result.images
+                    .compactMap(\.modelText)
+                    .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                    .joined(separator: "\n\n")
+                self.modelResponseText = mergedModelText.isEmpty ? nil : mergedModelText
+
+                for (index, savedURL) in savedURLs.enumerated() {
+                    let modelText = index < result.images.count ? result.images[index].modelText : nil
+                    self.appendHistory(
+                        HistoryRecord(
+                            mode: modeForHistory,
+                            prompt: trimmedPrompt,
+                            resolution: resolvedResolution,
+                            inputImagePaths: inputPaths,
+                            outputImagePath: savedURL.path,
+                            status: .success,
+                            errorMessage: nil,
+                            durationMs: durationMs,
+                            modelResponseText: modelText,
+                            networkRoute: routeUsed,
+                            proxyUsed: primaryRoute == .proxy,
+                            fallbackUsed: fallbackUsed,
+                            proxySummary: configuredProxySummary
+                        )
                     )
-                )
+                }
             } catch let appError as AppError {
                 let durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
                 self.setError(appError)
@@ -865,7 +909,7 @@ final class MainViewModel: ObservableObject {
 
     private func performGeneration(request: GenerationRequest, route: NetworkRoute) async throws -> GenerationResult {
         let session = try networkClientProvider.makeSession(config: config, route: route)
-        return try await apiClient.generateImage(
+        return try await apiClient.generateImagesBatch(
             request: request,
             timeoutSec: config.requestTimeoutSec,
             session: session,

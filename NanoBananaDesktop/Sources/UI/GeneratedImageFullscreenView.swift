@@ -14,6 +14,11 @@ struct GeneratedImageFullscreenView: View {
     @State private var offset: CGSize = .zero
     @State private var accumulatedOffset: CGSize = .zero
     @State private var scrollWheelMonitor: Any?
+    @State private var middleMouseDownMonitor: Any?
+    @State private var middleMouseDragMonitor: Any?
+    @State private var middleMouseUpMonitor: Any?
+    @State private var isMiddleMousePanning: Bool = false
+    @State private var lastMiddleMouseLocation: CGPoint?
 
     var body: some View {
         ZStack {
@@ -68,9 +73,11 @@ struct GeneratedImageFullscreenView: View {
         }
         .onAppear {
             installScrollWheelMonitor()
+            installMiddleMouseMonitors()
         }
         .onDisappear {
             removeScrollWheelMonitor()
+            removeMiddleMouseMonitors()
         }
     }
 
@@ -128,6 +135,8 @@ struct GeneratedImageFullscreenView: View {
     private func resetOffset() {
         offset = .zero
         accumulatedOffset = .zero
+        isMiddleMousePanning = false
+        lastMiddleMouseLocation = nil
     }
 
     private func installScrollWheelMonitor() {
@@ -152,6 +161,81 @@ struct GeneratedImageFullscreenView: View {
         }
         NSEvent.removeMonitor(scrollWheelMonitor)
         self.scrollWheelMonitor = nil
+    }
+
+    private func installMiddleMouseMonitors() {
+        guard middleMouseDownMonitor == nil,
+              middleMouseDragMonitor == nil,
+              middleMouseUpMonitor == nil else {
+            return
+        }
+
+        middleMouseDownMonitor = NSEvent.addLocalMonitorForEvents(matching: .otherMouseDown) { event in
+            guard event.buttonNumber == 2, scale > minScale else {
+                return event
+            }
+
+            isMiddleMousePanning = true
+            lastMiddleMouseLocation = event.locationInWindow
+            return nil
+        }
+
+        middleMouseDragMonitor = NSEvent.addLocalMonitorForEvents(matching: .otherMouseDragged) { event in
+            guard event.buttonNumber == 2, isMiddleMousePanning, scale > minScale else {
+                return event
+            }
+
+            let currentLocation = event.locationInWindow
+            if let lastMiddleMouseLocation {
+                let deltaX = currentLocation.x - lastMiddleMouseLocation.x
+                // NSEvent window coordinates use an inverted Y axis compared to SwiftUI DragGesture.
+                // Invert Y delta so middle-click panning matches left-click drag behavior.
+                let deltaY = -(currentLocation.y - lastMiddleMouseLocation.y)
+                offset = CGSize(
+                    width: offset.width + deltaX,
+                    height: offset.height + deltaY
+                )
+                accumulatedOffset = offset
+            }
+            self.lastMiddleMouseLocation = currentLocation
+
+            return nil
+        }
+
+        middleMouseUpMonitor = NSEvent.addLocalMonitorForEvents(matching: .otherMouseUp) { event in
+            guard event.buttonNumber == 2 else {
+                return event
+            }
+
+            if isMiddleMousePanning {
+                isMiddleMousePanning = false
+                lastMiddleMouseLocation = nil
+                accumulatedOffset = offset
+                return nil
+            }
+
+            return event
+        }
+    }
+
+    private func removeMiddleMouseMonitors() {
+        if let middleMouseDownMonitor {
+            NSEvent.removeMonitor(middleMouseDownMonitor)
+            self.middleMouseDownMonitor = nil
+        }
+
+        if let middleMouseDragMonitor {
+            NSEvent.removeMonitor(middleMouseDragMonitor)
+            self.middleMouseDragMonitor = nil
+        }
+
+        if let middleMouseUpMonitor {
+            NSEvent.removeMonitor(middleMouseUpMonitor)
+            self.middleMouseUpMonitor = nil
+        }
+
+        isMiddleMousePanning = false
+        lastMiddleMouseLocation = nil
     }
 
     private func zoomDelta(for event: NSEvent) -> CGFloat {

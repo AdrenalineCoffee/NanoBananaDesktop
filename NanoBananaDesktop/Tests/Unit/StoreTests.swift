@@ -25,6 +25,7 @@ func configStoreCreatesDefaultsWhenFileMissing() throws {
     #expect(result.config.allowDirectFallback == false)
     #expect(result.config.networkPolicyVersion == AppConfig.defaultNetworkPolicyVersion)
     #expect(result.config.defaultOutputDir == expectedDefaultPath)
+    #expect(result.config.requestTimeoutSec == AppConfig.defaultRequestTimeoutSec)
     #expect(result.recoveredFromCorruption == false)
     #expect(FileManager.default.fileExists(atPath: configURL.path))
 }
@@ -67,6 +68,7 @@ func configStoreMigratesLegacyPicturesDirectoryToNanoBananaImg() throws {
     #expect(result.config.proxyEnabled == true)
     #expect(result.config.proxyType == .http)
     #expect(result.config.proxyPort == 8080)
+    #expect(result.config.requestTimeoutSec == AppConfig.defaultRequestTimeoutSec)
 }
 
 @Test
@@ -108,6 +110,61 @@ func configStoreMigratesMissingPromptFromImageInstructionToDefault() throws {
     let store = try AppConfigStore(configURL: configURL)
     let result = store.load(currentWorkingDirectory: tempDir)
     #expect(result.config.promptFromImageInstruction == AppConfig.defaultPromptFromImageInstruction)
+    #expect(result.config.requestTimeoutSec == AppConfig.defaultRequestTimeoutSec)
+}
+
+@Test
+func configStoreMigratesLegacyTimeout120To180() throws {
+    let tempDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+    let configURL = tempDir.appendingPathComponent("config.json")
+    let oldSchemaJSON = """
+    {
+      "apiKey": "abc",
+      "model": "nano-banana-pro-preview",
+      "promptEnhancementModel": "gemini-3-flash-preview",
+      "promptEnhancementInstruction": "Improve prompt",
+      "promptFromImageInstruction": "Describe image",
+      "language": "en",
+      "defaultOutputDir": "/tmp",
+      "requestTimeoutSec": 120
+    }
+    """
+    try oldSchemaJSON.data(using: .utf8)?.write(to: configURL)
+
+    let store = try AppConfigStore(configURL: configURL)
+    let result = store.load(currentWorkingDirectory: tempDir)
+
+    #expect(result.config.requestTimeoutSec == AppConfig.defaultRequestTimeoutSec)
+}
+
+@Test
+func configStoreKeepsCustomTimeoutUnchanged() throws {
+    let tempDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+    let configURL = tempDir.appendingPathComponent("config.json")
+    let customTimeoutJSON = """
+    {
+      "apiKey": "abc",
+      "model": "nano-banana-pro-preview",
+      "promptEnhancementModel": "gemini-3-flash-preview",
+      "promptEnhancementInstruction": "Improve prompt",
+      "promptFromImageInstruction": "Describe image",
+      "language": "en",
+      "defaultOutputDir": "/tmp",
+      "requestTimeoutSec": 240
+    }
+    """
+    try customTimeoutJSON.data(using: .utf8)?.write(to: configURL)
+
+    let store = try AppConfigStore(configURL: configURL)
+    let result = store.load(currentWorkingDirectory: tempDir)
+
+    #expect(result.config.requestTimeoutSec == 240)
 }
 
 @Test
