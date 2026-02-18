@@ -594,7 +594,8 @@ final class MainViewModel: ObservableObject {
                         inputImagePaths: inputPaths,
                         outputImagePath: nil,
                         status: .error,
-                        errorMessage: self.userMessage(for: appError),
+                        errorMessage: self.displayMessage(for: appError),
+                        failureDiagnostics: appError.debugDetails.isEmpty ? nil : appError.debugDetails,
                         durationMs: durationMs,
                         modelResponseText: nil,
                         networkRoute: self.config.proxyEnabled ? .proxy : .directFallback,
@@ -615,7 +616,8 @@ final class MainViewModel: ObservableObject {
                         inputImagePaths: inputPaths,
                         outputImagePath: nil,
                         status: .error,
-                        errorMessage: self.userMessage(for: wrappedError),
+                        errorMessage: self.displayMessage(for: wrappedError),
+                        failureDiagnostics: wrappedError.debugDetails.isEmpty ? nil : wrappedError.debugDetails,
                         durationMs: durationMs,
                         modelResponseText: nil,
                         networkRoute: self.config.proxyEnabled ? .proxy : .directFallback,
@@ -899,12 +901,7 @@ final class MainViewModel: ObservableObject {
             }
             return .proxy
         }
-
-        if config.allowDirectFallback {
-            return .directFallback
-        }
-
-        throw AppError.proxyNotConfigured
+        return .directFallback
     }
 
     private func performGeneration(request: GenerationRequest, route: NetworkRoute) async throws -> GenerationResult {
@@ -1028,12 +1025,15 @@ final class MainViewModel: ObservableObject {
     }
 
     private func setError(_ error: AppError) {
+        self.errorMessage = displayMessage(for: error)
+    }
+
+    private func displayMessage(for error: AppError) -> String {
         let message = userMessage(for: error)
-        if error.debugDetails.isEmpty {
-            self.errorMessage = message
-        } else {
-            self.errorMessage = "\(message) (\(error.debugDetails))"
+        guard !error.debugDetails.isEmpty else {
+            return message
         }
+        return "\(message) (\(error.debugDetails))"
     }
 
     private func userMessage(for error: AppError) -> String {

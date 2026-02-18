@@ -55,6 +55,7 @@
 "settings.output_dir_placeholder" = "/Users/you/Pictures/NanoBanana_img";
 "settings.output_default_hint" = "Default: ~/Pictures/NanoBanana_img";
 "settings.timeout" = "Request timeout";
+"settings.version_value" = "Version: %@";
 "settings.proxy_enabled" = "Use proxy for network requests";
 "settings.allow_direct_fallback" = "Allow direct fallback if proxy fails";
 "settings.proxy_type" = "Proxy type";
@@ -90,7 +91,9 @@
 "history.copy_prompt" = "Copy prompt";
 "history.copy_model_response" = "Copy model response";
 "history.copy_error" = "Copy error";
+"history.copy_diagnostics" = "Copy diagnostics";
 "history.copy_output_path" = "Copy output path";
+"history.diagnostics_label" = "Diagnostics";
 "history.reuse" = "Reuse";
 "history.open_location" = "Open location";
 "history.open_fullscreen" = "Open fullscreen";

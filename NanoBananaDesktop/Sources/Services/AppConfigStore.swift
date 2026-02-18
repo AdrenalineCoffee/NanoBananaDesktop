@@ -87,7 +87,8 @@ final class AppConfigStore {
         }
 
         let normalizedPromptFromImageInstruction: String
-        if trimmedPromptFromImageInstruction.isEmpty {
+        if trimmedPromptFromImageInstruction.isEmpty
+            || trimmedPromptFromImageInstruction == AppConfig.legacyDefaultPromptFromImageInstruction {
             normalizedPromptFromImageInstruction = AppConfig.defaultPromptFromImageInstruction
         } else {
             normalizedPromptFromImageInstruction = trimmedPromptFromImageInstruction
@@ -120,6 +121,9 @@ final class AppConfigStore {
         } else {
             timeout = AppConfig.defaultRequestTimeoutSec
         }
+
+        let normalizedProxyHost = config.proxyHost.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedProxyEnabled = config.proxyEnabled && !normalizedProxyHost.isEmpty
         let normalizedProxyPort = (1...65535).contains(config.proxyPort) ? config.proxyPort : defaults.proxyPort
 
         let normalizedNoProxyHosts = config.noProxyHosts
@@ -136,11 +140,11 @@ final class AppConfigStore {
             defaultOutputDir: outputDirectory,
             requestTimeoutSec: timeout,
             proxyType: config.proxyType,
-            proxyHost: config.proxyHost.trimmingCharacters(in: .whitespacesAndNewlines),
+            proxyHost: normalizedProxyHost,
             proxyPort: normalizedProxyPort,
             proxyUsername: config.proxyUsername.trimmingCharacters(in: .whitespacesAndNewlines),
             proxyPassword: config.proxyPassword,
-            proxyEnabled: config.proxyEnabled,
+            proxyEnabled: normalizedProxyEnabled,
             allowDirectFallback: config.allowDirectFallback,
             noProxyHosts: normalizedNoProxyHosts,
             networkPolicyVersion: max(config.networkPolicyVersion, AppConfig.defaultNetworkPolicyVersion)

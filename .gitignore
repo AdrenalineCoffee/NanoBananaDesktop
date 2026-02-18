@@ -27,6 +27,7 @@ DerivedData/
 
 # Local binaries / artifacts
 *.app
+/NanoBananaDesktop.app/
 /NanoBananaDesktop-Local.app/
 /AppIcon.icns
 /Icon.png

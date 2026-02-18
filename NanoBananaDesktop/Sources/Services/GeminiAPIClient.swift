@@ -41,6 +41,7 @@ actor GeminiAPIClient {
 
     private let baseURL: URL
     private let batchPollIntervalNanos: UInt64 = 1_500_000_000
+    private let maxBatchOperationTimeoutSec = 720
 
     init(baseURL: URL = URL(string: "https://generativelanguage.googleapis.com")!) {
         self.baseURL = baseURL
@@ -129,8 +130,11 @@ actor GeminiAPIClient {
         let imageCount = min(max(request.imageCount, 1), 4)
         let operationTimeoutSec = effectiveBatchOperationTimeoutSec(
             baseTimeoutSec: timeoutSec,
-            imageCount: imageCount
+            imageCount: imageCount,
+            resolution: request.resolution
         )
+        let createRequestTimeoutSec = effectiveBatchCreateTimeoutSec(baseTimeoutSec: timeoutSec)
+        let statusRequestTimeoutSec = effectiveBatchStatusTimeoutSec(baseTimeoutSec: timeoutSec)
         let endpoint = try batchEndpointURL(model: sanitizedModel, apiKey: apiKey)
         let payload = try batchPayloadData(
             prompt: prompt,
@@ -148,13 +152,15 @@ actor GeminiAPIClient {
                     payload: payload,
                     apiKey: apiKey,
                     resolution: request.resolution,
-                    timeoutSec: timeoutSec,
+                    createTimeoutSec: createRequestTimeoutSec,
+                    statusTimeoutSec: statusRequestTimeoutSec,
                     operationTimeoutSec: operationTimeoutSec,
                     session: session,
                     route: route
                 )
             } catch {
-                if attempts == 0, isTransient(error: error) {
+                if attempts == 0, shouldRetryBatch(error: error) {
+                    log("Batch transient failure; retrying once. route=\(route.rawValue), reason=\(error)")
                     attempts += 1
                     continue
                 }
@@ -623,7 +629,8 @@ actor GeminiAPIClient {
         payload: Data,
         apiKey: String,
         resolution: ImageResolution,
-        timeoutSec: Int,
+        createTimeoutSec: Int,
+        statusTimeoutSec: Int,
         operationTimeoutSec: Int,
         session: URLSession,
         route: NetworkRoute
@@ -632,7 +639,7 @@ actor GeminiAPIClient {
             endpoint: endpoint,
             method: "POST",
             payload: payload,
-            timeoutSec: timeoutSec,
+            timeoutSec: createTimeoutSec,
             session: session,
             route: route
         )
@@ -644,6 +651,7 @@ actor GeminiAPIClient {
             resolution: resolution,
             route: route
         ) {
+            log("Batch finished immediately. route=\(route.rawValue)")
             return immediate
         }
 
@@ -652,30 +660,64 @@ actor GeminiAPIClient {
             throw AppError.invalidResponse
         }
 
+        let startedAt = Date()
+        var pollCount = 0
+        var lastKnownState = batchState(from: operation) ?? "UNKNOWN"
+        log(
+            "Batch started. route=\(route.rawValue), operation=\(operationName), state=\(lastKnownState), " +
+            "deadline=\(operationTimeoutSec)s"
+        )
+
         let deadline = Date().addingTimeInterval(TimeInterval(operationTimeoutSec))
         while true {
             if Date() >= deadline {
-                throw AppError.timeout
+                let elapsedSec = Int(Date().timeIntervalSince(startedAt))
+                let details = "route=\(route.rawValue), operation=\(operationName), elapsed=\(elapsedSec)s, " +
+                    "state=\(lastKnownState), polls=\(pollCount), deadline=\(operationTimeoutSec)s"
+                log("Batch timeout. \(details)")
+                throw AppError.timeoutWithDetails(details)
             }
 
             try await Task.sleep(nanoseconds: batchPollIntervalNanos)
+            pollCount += 1
 
             let statusURL = try batchStatusURL(batchName: operationName, apiKey: apiKey)
             let statusData = try await executeRequest(
                 endpoint: statusURL,
                 method: "GET",
                 payload: nil,
-                timeoutSec: timeoutSec,
+                timeoutSec: statusTimeoutSec,
                 session: session,
                 route: route
             )
 
             let statusOperation = try parseJSONObject(from: statusData)
+            let state = batchState(from: statusOperation) ?? "UNKNOWN"
+            if state != lastKnownState {
+                let elapsedSec = Int(Date().timeIntervalSince(startedAt))
+                log(
+                    "Batch state changed. route=\(route.rawValue), operation=\(operationName), " +
+                    "state=\(state), elapsed=\(elapsedSec)s"
+                )
+                lastKnownState = state
+            } else if pollCount % 10 == 0 {
+                let elapsedSec = Int(Date().timeIntervalSince(startedAt))
+                log(
+                    "Batch polling. route=\(route.rawValue), operation=\(operationName), " +
+                    "state=\(state), polls=\(pollCount), elapsed=\(elapsedSec)s"
+                )
+            }
+
             if let result = try parseBatchResultFromOperation(
                 statusOperation,
                 resolution: resolution,
                 route: route
             ) {
+                let elapsedSec = Int(Date().timeIntervalSince(startedAt))
+                log(
+                    "Batch completed. route=\(route.rawValue), operation=\(operationName), " +
+                    "state=\(state), polls=\(pollCount), elapsed=\(elapsedSec)s"
+                )
                 return result
             }
         }
@@ -1042,7 +1084,7 @@ actor GeminiAPIClient {
 
         switch error.code {
         case .timedOut:
-            return .timeout
+            return .timeoutWithDetails("route=\(route.rawValue), url_error=\(error.code.rawValue), message=\(error.localizedDescription)")
         case .notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed:
             return .network(error.localizedDescription)
         default:
@@ -1053,7 +1095,7 @@ actor GeminiAPIClient {
     private func isTransient(error: Error) -> Bool {
         if let appError = error as? AppError {
             switch appError {
-            case .timeout, .network, .serverError, .proxyConnectionFailed:
+            case .timeout, .timeoutWithDetails, .network, .serverError, .proxyConnectionFailed:
                 return true
             default:
                 return false
@@ -1063,13 +1105,54 @@ actor GeminiAPIClient {
         return false
     }
 
-    private func effectiveBatchOperationTimeoutSec(baseTimeoutSec: Int, imageCount: Int) -> Int {
-        let safeBase = max(baseTimeoutSec, 30)
+    private func shouldRetryBatch(error: Error) -> Bool {
+        // Do not re-run the whole batch after deadline timeout: it doubles worst-case wait.
+        if let appError = error as? AppError {
+            switch appError {
+            case .timeout, .timeoutWithDetails:
+                return false
+            default:
+                break
+            }
+        }
+        return isTransient(error: error)
+    }
+
+    private func effectiveBatchOperationTimeoutSec(
+        baseTimeoutSec: Int,
+        imageCount: Int,
+        resolution: ImageResolution
+    ) -> Int {
+        let safeBase = min(max(baseTimeoutSec, 30), 360)
         let boundedCount = min(max(imageCount, 1), 4)
 
-        // Batch jobs can queue longer than direct generateContent calls.
-        // Scale total wait time by image count to avoid premature timeout.
-        return min(safeBase * boundedCount, 900)
+        // Keep queue tolerance for heavier jobs without returning to multi‑tens-of-minutes waits.
+        let perImageGraceSec = 60 * (boundedCount - 1)
+        let resolutionBoostSec: Int
+        switch resolution {
+        case .k1:
+            resolutionBoostSec = 0
+        case .k2:
+            resolutionBoostSec = 45
+        case .k4:
+            resolutionBoostSec = 120
+        }
+
+        return min(safeBase + perImageGraceSec + resolutionBoostSec, maxBatchOperationTimeoutSec)
+    }
+
+    private func effectiveBatchCreateTimeoutSec(baseTimeoutSec: Int) -> Int {
+        // Create call includes payload upload; keep it higher than status polling.
+        min(max(baseTimeoutSec, 60), 180)
+    }
+
+    private func effectiveBatchStatusTimeoutSec(baseTimeoutSec: Int) -> Int {
+        // Status checks should fail fast; they are small GET calls.
+        min(max(baseTimeoutSec / 3, 30), 90)
+    }
+
+    private func log(_ message: String) {
+        print("[NanoBananaDesktop][GeminiAPIClient] \(message)")
     }
 
     private func shouldTryPayloadFallback(from error: AppError, variant: RequestConfigVariant) -> Bool {

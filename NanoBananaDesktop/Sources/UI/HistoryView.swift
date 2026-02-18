@@ -138,6 +138,14 @@ struct HistoryView: View {
                                         .font(.caption)
                                         .foregroundStyle(.red)
                                 }
+
+                                if let diagnostics = item.failureDiagnostics,
+                                   !diagnostics.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    Text("\(viewModel.localized("history.diagnostics_label")): \(diagnostics)")
+                                        .font(.caption2.monospaced())
+                                        .foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                }
                             }
                         }
                         .padding(.vertical, 4)
@@ -157,6 +165,13 @@ struct HistoryView: View {
                                !error.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                 Button(viewModel.localized("history.copy_error")) {
                                     copyToPasteboard(error)
+                                }
+                            }
+
+                            if let diagnostics = item.failureDiagnostics,
+                               !diagnostics.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Button(viewModel.localized("history.copy_diagnostics")) {
+                                    copyToPasteboard(diagnostics)
                                 }
                             }
 

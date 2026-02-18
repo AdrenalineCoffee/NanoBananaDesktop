@@ -43,7 +43,7 @@ bash scripts/build_local_app.sh
 ```
 
 This creates:
-- `NanoBananaDesktop-Local.app` in the repository root
+- `NanoBananaDesktop.app` in the repository root
 - ad-hoc signature for local launch
 - embedded icon from `NanoBananaDesktop/Resources/AppIcon.icns` (if file exists)
 
@@ -57,7 +57,7 @@ swift build -c release
 2. Create app bundle structure and copy executable/resources:
 ```bash
 BIN_DIR="$(swift build -c release --show-bin-path)"
-APP_NAME="NanoBananaDesktop-Local.app"
+APP_NAME="NanoBananaDesktop.app"
 APP_PATH="$PWD/$APP_NAME"
 
 rm -rf "$APP_PATH"
@@ -115,7 +115,7 @@ open "$APP_PATH"
 ```
 
 Notes:
-- `NanoBananaDesktop-Local.app` is ignored by git (`.gitignore`).
+- `NanoBananaDesktop.app` is ignored by git (`.gitignore`).
 - Ad-hoc signing is enough for local use on your Mac.
 - For distribution to other Macs, use proper Developer ID signing + notarization.
 - Canonical icon source for builds: `NanoBananaDesktop/Resources/AppIcon.icns`.

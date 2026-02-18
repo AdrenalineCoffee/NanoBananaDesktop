@@ -39,7 +39,8 @@ struct ProxySessionFactory: NetworkClientProvider {
 
     func makeSession(config: AppConfig, route: NetworkRoute) throws -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.waitsForConnectivity = true
+        // Fail fast when connectivity is missing to avoid very long perceived hangs.
+        configuration.waitsForConnectivity = false
 
         if let protocolClasses {
             configuration.protocolClasses = protocolClasses

@@ -23,6 +23,7 @@ enum AppError: Error, Equatable {
 
     case network(String)
     case timeout
+    case timeoutWithDetails(String)
     case unauthorized
     case permissionDenied
     case quotaExceeded
@@ -76,6 +77,8 @@ enum AppError: Error, Equatable {
             return "error.network"
         case .timeout:
             return "error.timeout"
+        case .timeoutWithDetails:
+            return "error.timeout"
         case .unauthorized:
             return "error.unauthorized"
         case .permissionDenied:
@@ -108,7 +111,8 @@ enum AppError: Error, Equatable {
              .proxyConnectionFailed(let message),
              .proxyAuthFailed(let message),
              .directFallbackDisabled(let message),
-             .proxyInvalidSettings(let message):
+             .proxyInvalidSettings(let message),
+             .timeoutWithDetails(let message):
             return message
         case .promptFromImageModelNotSupported:
             return ""
@@ -124,6 +128,8 @@ enum AppError: Error, Equatable {
     var isRecoverableProxyFailure: Bool {
         switch self {
         case .proxyConnectionFailed, .proxyAuthFailed:
+            return true
+        case .timeoutWithDetails:
             return true
         default:
             return false

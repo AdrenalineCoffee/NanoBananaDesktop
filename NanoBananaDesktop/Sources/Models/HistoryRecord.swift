@@ -15,6 +15,7 @@ struct HistoryRecord: Codable, Identifiable {
     let outputImagePath: String?
     let status: HistoryStatus
     let errorMessage: String?
+    let failureDiagnostics: String?
     let durationMs: Int
     let modelResponseText: String?
 
@@ -33,6 +34,7 @@ struct HistoryRecord: Codable, Identifiable {
         outputImagePath: String?,
         status: HistoryStatus,
         errorMessage: String?,
+        failureDiagnostics: String? = nil,
         durationMs: Int,
         modelResponseText: String? = nil,
         networkRoute: NetworkRoute = .proxy,
@@ -49,6 +51,7 @@ struct HistoryRecord: Codable, Identifiable {
         self.outputImagePath = outputImagePath
         self.status = status
         self.errorMessage = errorMessage
+        self.failureDiagnostics = failureDiagnostics
         self.durationMs = durationMs
         self.modelResponseText = modelResponseText
         self.networkRoute = networkRoute
@@ -68,6 +71,7 @@ struct HistoryRecord: Codable, Identifiable {
         case outputImagePath
         case status
         case errorMessage
+        case failureDiagnostics
         case durationMs
         case modelResponseText
         case networkRoute
@@ -96,6 +100,7 @@ struct HistoryRecord: Codable, Identifiable {
         outputImagePath = try container.decodeIfPresent(String.self, forKey: .outputImagePath)
         status = try container.decodeIfPresent(HistoryStatus.self, forKey: .status) ?? .error
         errorMessage = try container.decodeIfPresent(String.self, forKey: .errorMessage)
+        failureDiagnostics = try container.decodeIfPresent(String.self, forKey: .failureDiagnostics)
         durationMs = try container.decodeIfPresent(Int.self, forKey: .durationMs) ?? 0
         modelResponseText = try container.decodeIfPresent(String.self, forKey: .modelResponseText)
         networkRoute = try container.decodeIfPresent(NetworkRoute.self, forKey: .networkRoute) ?? .proxy
@@ -115,6 +120,7 @@ struct HistoryRecord: Codable, Identifiable {
         try container.encodeIfPresent(outputImagePath, forKey: .outputImagePath)
         try container.encode(status, forKey: .status)
         try container.encodeIfPresent(errorMessage, forKey: .errorMessage)
+        try container.encodeIfPresent(failureDiagnostics, forKey: .failureDiagnostics)
         try container.encode(durationMs, forKey: .durationMs)
         try container.encodeIfPresent(modelResponseText, forKey: .modelResponseText)
         try container.encode(networkRoute, forKey: .networkRoute)

@@ -3,6 +3,37 @@ import Foundation
 struct AppConfig: Codable, Equatable {
     static let legacyDefaultImageModel = "gemini-3-pro-image-preview"
     static let legacyDefaultPromptEnhancementInstruction = "Улучши мой запрос для генерации изображения в Nano Banana Pro и пришли только исключительно улучшенный запрос без дополнительных слов"
+    static let legacyDefaultPromptFromImageInstruction = """
+Ты — PROMPT EXTRACTOR для генерации изображений (выход будет использоваться в Nano Banana).
+Твоя задача: по предоставленному ИЗОБРАЖЕНИЮ(ям) создать максимально точный промпт, который воспроизводит:
+1) стиль (материалы, текстуры, зерно/плёнка, цветокор, уровень реализма/иллюстративность),
+2) окружение/фон,
+3) композицию и кадрирование,
+4) свет (тип, направление, мягкость, тени, отражения),
+5) параметры камеры (примерно: угол, фокусное/перспектива, глубина резкости),
+6) ВСЕ надписи на изображении (точный текст, регистр, пунктуация) + их расположение/размер/стиль.
+
+КРИТИЧЕСКИ ВАЖНО:
+- Ничего не “улучшай” художественно и не меняй стиль. Твоя цель — максимально точная реконструкция.
+- Не добавляй новых объектов/надписей/логотипов, которых нет на изображении.
+- Если что-то невозможно разобрать (текст, мелкая деталь) — напиши UNKNOWN вместо выдумывания.
+- Текст на изображении должен быть воспроизведён дословно. Если язык/символы неясны — UNKNOWN.
+
+
+=== ФОРМАТ ВЫВОДА (строго так, без лишних пояснений) ===
+A) NANO BANANA PROMPT (лучше на английском, но допускается русский, кроме текста): один цельный промпт.
+B) TEXT LAYOUT (если есть текст):
+   - Text_1: "..." | font style | color | effects | position (x%, y%) | size (% of image height) | rotation (deg) | alignment
+   - Text_2: ...
+   (позиции указывать как проценты: левый верх = 0%,0%; правый низ = 100%,100%)
+C) NEGATIVE PROMPT: 12–20 коротких запретов, релевантных стилю (без огромных списков).
+D) OPTIONAL SETTINGS: aspect ratio, "studio/film grain", "high detail", "sharp/soft", если уместно.
+
+
+=== ВХОДНЫЕ ДАННЫЕ ===
+REFERENCE_IMAGE: (первое изображение, стиль/сцена/композиция — источник правды)
+USER_NOTES: (опционально — что особенно важно сохранить: цвета, бренд, точность текста, формат)
+"""
     static let defaultModel = "nano-banana-pro-preview"
     static let defaultPromptEnhancementModel = "gemini-3-flash-preview"
     static let defaultPromptFromImageInstruction = """
@@ -29,8 +60,6 @@ B) TEXT LAYOUT (если есть текст):
    - Text_2: ...
    (позиции указывать как проценты: левый верх = 0%,0%; правый низ = 100%,100%)
 C) NEGATIVE PROMPT: 12–20 коротких запретов, релевантных стилю (без огромных списков).
-D) OPTIONAL SETTINGS: aspect ratio, "studio/film grain", "high detail", "sharp/soft", если уместно.
-
 
 === ВХОДНЫЕ ДАННЫЕ ===
 REFERENCE_IMAGE: (первое изображение, стиль/сцена/композиция — источник правды)
@@ -111,7 +140,7 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
             proxyPort: 8080,
             proxyUsername: "",
             proxyPassword: "",
-            proxyEnabled: true,
+            proxyEnabled: false,
             allowDirectFallback: false,
             noProxyHosts: [],
             networkPolicyVersion: defaultNetworkPolicyVersion

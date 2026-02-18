@@ -54,6 +54,56 @@ func generateFlowSuccessSavesImageThroughProxyRoute() async throws {
 }
 
 @Test
+func generateFlowSucceedsWithoutProxyWhenProxyIsDisabled() async throws {
+    let apiKey = "key-smoke-direct"
+    let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+
+    let configStore = try AppConfigStore(configURL: tempDirectory.appendingPathComponent("config.json"))
+    let historyStore = try HistoryStore(historyURL: tempDirectory.appendingPathComponent("history.json"))
+    let client = GeminiAPIClient()
+    let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])
+
+    setBatchGenerationHandler(
+        forAPIKey: apiKey,
+        expectedRequestCount: 1,
+        imageBase64s: [tinyPNGBase64]
+    )
+
+    let viewModel = await MainActor.run {
+        MainViewModel(
+            configStore: configStore,
+            historyStore: historyStore,
+            apiClient: client,
+            networkClientProvider: networkProvider
+        )
+    }
+
+    await MainActor.run {
+        viewModel.config.apiKey = apiKey
+        viewModel.config.defaultOutputDir = tempDirectory.path
+        viewModel.config.proxyEnabled = false
+        viewModel.config.allowDirectFallback = false
+        viewModel.prompt = "A robot in city"
+        viewModel.generate()
+    }
+
+    try await waitForGenerationToComplete(viewModel: viewModel)
+
+    let outputPath = await MainActor.run { viewModel.lastOutputPath }
+    #expect(outputPath != nil)
+    #expect(FileManager.default.fileExists(atPath: outputPath ?? ""))
+
+    let historyItems = await MainActor.run { viewModel.history }
+    #expect(historyItems.count == 1)
+    #expect(historyItems.first?.networkRoute == .directFallback)
+    #expect(historyItems.first?.proxyUsed == false)
+
+    MockURLProtocol.removeHandler(forAPIKey: apiKey)
+}
+
+@Test
 func generateFlowWithMultipleAttachmentsUsesEditMode() async throws {
     let apiKey = "key-multi-attachments"
     let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)

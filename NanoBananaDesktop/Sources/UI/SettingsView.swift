@@ -267,6 +267,13 @@ struct SettingsView: View {
                     }
                     .buttonStyle(.borderedProminent)
                 }
+
+                HStack {
+                    Spacer()
+                    Text(viewModel.localized("settings.version_value", appVersionDisplay))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding(24)
         }
@@ -320,5 +327,26 @@ struct SettingsView: View {
         }
 
         return .green
+    }
+
+    private var appVersionDisplay: String {
+        let rawVersion = (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawBuild = (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let version = (rawVersion?.isEmpty == false) ? rawVersion : nil
+        let build = (rawBuild?.isEmpty == false) ? rawBuild : nil
+
+        switch (version, build) {
+        case let (.some(version), .some(build)):
+            return version == build ? version : "\(version) (\(build))"
+        case let (.some(version), .none):
+            return version
+        case let (.none, .some(build)):
+            return build
+        case (.none, .none):
+            return "dev"
+        }
     }
 }

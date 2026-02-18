@@ -21,7 +21,7 @@ func configStoreCreatesDefaultsWhenFileMissing() throws {
     #expect(result.config.promptEnhancementModel == AppConfig.defaultPromptEnhancementModel)
     #expect(result.config.promptEnhancementInstruction == AppConfig.defaultPromptEnhancementInstruction)
     #expect(result.config.promptFromImageInstruction == AppConfig.defaultPromptFromImageInstruction)
-    #expect(result.config.proxyEnabled == true)
+    #expect(result.config.proxyEnabled == false)
     #expect(result.config.allowDirectFallback == false)
     #expect(result.config.networkPolicyVersion == AppConfig.defaultNetworkPolicyVersion)
     #expect(result.config.defaultOutputDir == expectedDefaultPath)
@@ -65,7 +65,7 @@ func configStoreMigratesLegacyPicturesDirectoryToNanoBananaImg() throws {
     #expect(result.config.promptEnhancementModel == AppConfig.defaultPromptEnhancementModel)
     #expect(result.config.promptEnhancementInstruction == AppConfig.defaultPromptEnhancementInstruction)
     #expect(result.config.promptFromImageInstruction == AppConfig.defaultPromptFromImageInstruction)
-    #expect(result.config.proxyEnabled == true)
+    #expect(result.config.proxyEnabled == false)
     #expect(result.config.proxyType == .http)
     #expect(result.config.proxyPort == 8080)
     #expect(result.config.requestTimeoutSec == AppConfig.defaultRequestTimeoutSec)
@@ -111,6 +111,37 @@ func configStoreMigratesMissingPromptFromImageInstructionToDefault() throws {
     let result = store.load(currentWorkingDirectory: tempDir)
     #expect(result.config.promptFromImageInstruction == AppConfig.defaultPromptFromImageInstruction)
     #expect(result.config.requestTimeoutSec == AppConfig.defaultRequestTimeoutSec)
+}
+
+@Test
+func configStoreMigratesLegacyPromptFromImageInstructionToNewDefault() throws {
+    let tempDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+    let configURL = tempDir.appendingPathComponent("config.json")
+    let legacyInstruction = AppConfig.legacyDefaultPromptFromImageInstruction
+        .replacingOccurrences(of: "\\", with: "\\\\")
+        .replacingOccurrences(of: "\"", with: "\\\"")
+        .replacingOccurrences(of: "\n", with: "\\n")
+
+    let legacyConfigJSON = """
+    {
+      "apiKey": "abc",
+      "model": "nano-banana-pro-preview",
+      "promptEnhancementModel": "gemini-3-flash-preview",
+      "promptEnhancementInstruction": "Improve prompt",
+      "promptFromImageInstruction": "\(legacyInstruction)",
+      "language": "en",
+      "defaultOutputDir": "/tmp",
+      "requestTimeoutSec": 180
+    }
+    """
+    try legacyConfigJSON.data(using: .utf8)?.write(to: configURL)
+
+    let store = try AppConfigStore(configURL: configURL)
+    let result = store.load(currentWorkingDirectory: tempDir)
+    #expect(result.config.promptFromImageInstruction == AppConfig.defaultPromptFromImageInstruction)
 }
 
 @Test
@@ -165,6 +196,35 @@ func configStoreKeepsCustomTimeoutUnchanged() throws {
     let result = store.load(currentWorkingDirectory: tempDir)
 
     #expect(result.config.requestTimeoutSec == 240)
+}
+
+@Test
+func configStoreDisablesProxyWhenLegacyConfigHasEmptyHost() throws {
+    let tempDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+    let configURL = tempDir.appendingPathComponent("config.json")
+    let legacyConfigJSON = """
+    {
+      "apiKey": "abc",
+      "model": "nano-banana-pro-preview",
+      "promptEnhancementModel": "gemini-3-flash-preview",
+      "promptEnhancementInstruction": "Improve prompt",
+      "promptFromImageInstruction": "Describe image",
+      "language": "en",
+      "defaultOutputDir": "/tmp",
+      "requestTimeoutSec": 180,
+      "proxyEnabled": true,
+      "proxyHost": ""
+    }
+    """
+    try legacyConfigJSON.data(using: .utf8)?.write(to: configURL)
+
+    let store = try AppConfigStore(configURL: configURL)
+    let result = store.load(currentWorkingDirectory: tempDir)
+
+    #expect(result.config.proxyEnabled == false)
 }
 
 @Test
