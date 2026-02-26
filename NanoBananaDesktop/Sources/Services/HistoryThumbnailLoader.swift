@@ -61,7 +61,12 @@ final class HistoryThumbnailLoader {
                     return
                 }
 
-                let image = NSImage(cgImage: cgImage, size: NSSize(width: targetSize.width, height: targetSize.height))
+                // Preserve aspect ratio: using a fixed square size here makes SwiftUI treat the image as 1:1
+                // and will visually distort non-square thumbnails.
+                let image = NSImage(
+                    cgImage: cgImage,
+                    size: NSSize(width: cgImage.width, height: cgImage.height)
+                )
                 continuation.resume(returning: image)
             }
         }

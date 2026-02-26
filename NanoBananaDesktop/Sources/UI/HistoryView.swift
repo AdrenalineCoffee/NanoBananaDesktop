@@ -245,8 +245,9 @@ struct HistoryView: View {
                 if let image = thumbnails[outputPath] {
                     Image(nsImage: image)
                         .resizable()
-                        .aspectRatio(contentMode: .fill)
+                        .aspectRatio(contentMode: .fit)
                         .frame(width: 44, height: 44)
+                        .background(Color.secondary.opacity(0.12))
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .accessibilityLabel(viewModel.localized("history.thumbnail_alt"))
                 } else {
