@@ -14,11 +14,7 @@ func generateFlowSuccessSavesImageThroughProxyRoute() async throws {
     let client = GeminiAPIClient()
     let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])
 
-    setBatchGenerationHandler(
-        forAPIKey: apiKey,
-        expectedRequestCount: 1,
-        imageBase64s: [tinyPNGBase64]
-    )
+    setSingleGenerationHandler(forAPIKey: apiKey, imageBase64: tinyPNGBase64)
 
     let viewModel = await MainActor.run {
         MainViewModel(
@@ -65,11 +61,7 @@ func generateFlowSucceedsWithoutProxyWhenProxyIsDisabled() async throws {
     let client = GeminiAPIClient()
     let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])
 
-    setBatchGenerationHandler(
-        forAPIKey: apiKey,
-        expectedRequestCount: 1,
-        imageBase64s: [tinyPNGBase64]
-    )
+    setSingleGenerationHandler(forAPIKey: apiKey, imageBase64: tinyPNGBase64)
 
     let viewModel = await MainActor.run {
         MainViewModel(
@@ -120,11 +112,7 @@ func generateFlowWithMultipleAttachmentsUsesEditMode() async throws {
     let client = GeminiAPIClient()
     let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])
 
-    setBatchGenerationHandler(
-        forAPIKey: apiKey,
-        expectedRequestCount: 1,
-        imageBase64s: [tinyPNGBase64]
-    )
+    setSingleGenerationHandler(forAPIKey: apiKey, imageBase64: tinyPNGBase64)
 
     let viewModel = await MainActor.run {
         MainViewModel(
@@ -481,11 +469,7 @@ func generateFlowAllowsDirectFallbackWhenEnabled() async throws {
 
     let failingProxyThenDirectProvider = ProxyFirstThenDirectProvider(protocolClasses: [MockURLProtocol.self])
 
-    setBatchGenerationHandler(
-        forAPIKey: apiKey,
-        expectedRequestCount: 1,
-        imageBase64s: [tinyPNGBase64]
-    )
+    setSingleGenerationHandler(forAPIKey: apiKey, imageBase64: tinyPNGBase64)
 
     let viewModel = await MainActor.run {
         MainViewModel(
@@ -1087,6 +1071,35 @@ private func waitForAPICheckCompletion(viewModel: MainViewModel) async throws {
         try await Task.sleep(nanoseconds: 50_000_000)
     }
     Issue.record("API availability check did not complete in time")
+}
+
+private func setSingleGenerationHandler(
+    forAPIKey apiKey: String,
+    imageBase64: String
+) {
+    MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
+        let url = try #require(request.url)
+        #expect(url.path.contains(":generateContent") == true)
+
+        let json: [String: Any] = [
+            "candidates": [[
+                "content": [
+                    "parts": [
+                        ["text": "single-image"],
+                        ["inlineData": ["mimeType": "image/png", "data": imageBase64]]
+                    ]
+                ]
+            ]]
+        ]
+        let responseData = try JSONSerialization.data(withJSONObject: json)
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (response, responseData)
+    }
 }
 
 private func setBatchGenerationHandler(

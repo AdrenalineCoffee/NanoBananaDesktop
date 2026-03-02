@@ -918,6 +918,15 @@ final class MainViewModel: ObservableObject {
 
     private func performGeneration(request: GenerationRequest, route: NetworkRoute) async throws -> GenerationResult {
         let session = try networkClientProvider.makeSession(config: config, route: route)
+        if request.imageCount <= 1 {
+            return try await apiClient.generateImage(
+                request: request,
+                timeoutSec: config.requestTimeoutSec,
+                session: session,
+                route: route
+            )
+        }
+
         return try await apiClient.generateImagesBatch(
             request: request,
             timeoutSec: config.requestTimeoutSec,
