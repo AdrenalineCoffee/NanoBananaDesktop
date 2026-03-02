@@ -1,6 +1,6 @@
 import Foundation
 
-struct GenerationInputImage: Equatable {
+struct GenerationInputImage: Equatable, Sendable {
     let id: UUID
     let fileURL: URL
     let filename: String
@@ -22,7 +22,7 @@ struct GenerationInputImage: Equatable {
     }
 }
 
-struct GenerationRequest {
+struct GenerationRequest: Sendable {
     var mode: GenerationMode
     var prompt: String
     var model: String
@@ -33,12 +33,12 @@ struct GenerationRequest {
     var imageCount: Int = 1
 }
 
-struct GeneratedImageResult: Equatable {
+struct GeneratedImageResult: Equatable, Sendable {
     let imageData: Data
     let modelText: String?
 }
 
-struct GenerationResult: Equatable {
+struct GenerationResult: Equatable, Sendable {
     let images: [GeneratedImageResult]
     let usedResolution: ImageResolution
 

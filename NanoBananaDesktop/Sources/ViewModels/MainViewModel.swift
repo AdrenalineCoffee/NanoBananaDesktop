@@ -927,12 +927,56 @@ final class MainViewModel: ObservableObject {
             )
         }
 
-        return try await apiClient.generateImagesBatch(
+        return try await performParallelDirectGeneration(
             request: request,
-            timeoutSec: config.requestTimeoutSec,
             session: session,
             route: route
         )
+    }
+
+    private func performParallelDirectGeneration(
+        request: GenerationRequest,
+        session: URLSession,
+        route: NetworkRoute
+    ) async throws -> GenerationResult {
+        let targetCount = min(max(request.imageCount, 1), 4)
+        var orderedImages = Array<GeneratedImageResult?>(repeating: nil, count: targetCount)
+        let timeoutSec = config.requestTimeoutSec
+
+        let requestTemplate: GenerationRequest = {
+            var template = request
+            template.imageCount = 1
+            return template
+        }()
+
+        try await withThrowingTaskGroup(of: (Int, GeneratedImageResult).self) { taskGroup in
+            for index in 0..<targetCount {
+                taskGroup.addTask {
+                    let directClient = GeminiAPIClient()
+                    let singleResult = try await directClient.generateImage(
+                        request: requestTemplate,
+                        timeoutSec: timeoutSec,
+                        session: session,
+                        route: route
+                    )
+                    guard let firstImage = singleResult.images.first else {
+                        throw AppError.noImageInResponse
+                    }
+                    return (index, firstImage)
+                }
+            }
+
+            for try await (index, image) in taskGroup {
+                orderedImages[index] = image
+            }
+        }
+
+        let images = orderedImages.compactMap { $0 }
+        guard images.count == targetCount else {
+            throw AppError.noImageInResponse
+        }
+
+        return GenerationResult(images: images, usedResolution: request.resolution)
     }
 
     private func performPromptEnhancement(

@@ -166,7 +166,7 @@ func generateFlowWithImageCountThreeCreatesThreeOutputsAndHistoryEntries() async
     let client = GeminiAPIClient()
     let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])
 
-    setBatchGenerationHandler(
+    setMultiSingleGenerationHandler(
         forAPIKey: apiKey,
         expectedRequestCount: 3,
         imageBase64s: [tinyPNGBase64, tinyPNGBase64Alt, tinyPNGBase64SecondAlt]
@@ -1087,6 +1087,44 @@ private func setSingleGenerationHandler(
                     "parts": [
                         ["text": "single-image"],
                         ["inlineData": ["mimeType": "image/png", "data": imageBase64]]
+                    ]
+                ]
+            ]]
+        ]
+        let responseData = try JSONSerialization.data(withJSONObject: json)
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (response, responseData)
+    }
+}
+
+private func setMultiSingleGenerationHandler(
+    forAPIKey apiKey: String,
+    expectedRequestCount: Int,
+    imageBase64s: [String]
+) {
+    let fallbackBase64 = imageBase64s.first ?? tinyPNGBase64
+    var requestCount = 0
+
+    MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
+        let url = try #require(request.url)
+        #expect(url.path.contains(":generateContent") == true)
+
+        requestCount += 1
+        let selectedImage = requestCount <= imageBase64s.count
+            ? imageBase64s[requestCount - 1]
+            : fallbackBase64
+
+        let json: [String: Any] = [
+            "candidates": [[
+                "content": [
+                    "parts": [
+                        ["text": "single-image-\(requestCount)"],
+                        ["inlineData": ["mimeType": "image/png", "data": selectedImage]]
                     ]
                 ]
             ]]
