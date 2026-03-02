@@ -88,6 +88,36 @@ struct SettingsView: View {
                             .disabled(viewModel.isLoadingModels)
                         }
 
+                        HStack(spacing: 10) {
+                            Button {
+                                viewModel.checkAPIAvailability()
+                            } label: {
+                                Label(
+                                    viewModel.localized("settings.api_check"),
+                                    systemImage: "network.badge.shield.half.filled"
+                                )
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(viewModel.isCheckingAPIAvailability)
+
+                            if viewModel.isCheckingAPIAvailability {
+                                ProgressView()
+                                    .scaleEffect(0.75)
+                                Text(viewModel.localized("settings.api_check_in_progress"))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+                        }
+
+                        if let apiAvailabilityMessage = viewModel.apiAvailabilityMessage,
+                           !apiAvailabilityMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text(apiAvailabilityMessage)
+                                .font(.caption)
+                                .foregroundStyle(viewModel.apiAvailabilityMessageIsError ? .red : .green)
+                        }
+
                         VStack(alignment: .leading, spacing: 6) {
                             Text(viewModel.localized("settings.prompt_enhancement_instruction"))
                                 .font(.callout)

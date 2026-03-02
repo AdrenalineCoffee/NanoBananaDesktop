@@ -50,6 +50,10 @@
 "settings.text_models_not_loaded" = "Not loaded";
 "settings.text_models_loaded" = "Loaded: %d";
 "settings.refresh_models" = "Refresh";
+"settings.api_check" = "Check API availability";
+"settings.api_check_in_progress" = "Checking...";
+"settings.api_check_success" = "API reachable. Image models: %d, text models: %d.";
+"settings.api_check_success_fallback" = "API reachable via direct fallback. Image models: %d, text models: %d.";
 "settings.language" = "Language";
 "settings.output_dir" = "Default output directory";
 "settings.output_dir_placeholder" = "/Users/you/Pictures/NanoBanana_img";

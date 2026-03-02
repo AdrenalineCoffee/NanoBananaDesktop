@@ -44,6 +44,9 @@ final class MainViewModel: ObservableObject {
     @Published var availableTextModels: [ModelCatalogItem] = []
     @Published var isLoadingModels: Bool = false
     @Published var modelCatalogErrorMessage: String?
+    @Published var isCheckingAPIAvailability: Bool = false
+    @Published var apiAvailabilityMessage: String?
+    @Published var apiAvailabilityMessageIsError: Bool = false
     @Published var isEnhancingPrompt: Bool = false
     @Published var isGeneratingPromptFromImage: Bool = false
 
@@ -364,6 +367,15 @@ final class MainViewModel: ObservableObject {
         errorMessage = nil
         successMessage = nil
         modelResponseText = nil
+    }
+
+    func checkAPIAvailability() {
+        Task { [weak self] in
+            guard let self else {
+                return
+            }
+            await self.checkAPIAvailabilityAsync()
+        }
     }
 
     func handleDroppedImageURLs(_ urls: [URL]) {
@@ -1000,6 +1012,83 @@ final class MainViewModel: ObservableObject {
             applyModelCatalog([])
             applyTextModelCatalog([])
             modelCatalogErrorMessage = userMessage(for: .modelCatalogUnavailable(error.localizedDescription))
+        }
+    }
+
+    private func checkAPIAvailabilityAsync() async {
+        let trimmedAPIKey = config.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedAPIKey.isEmpty else {
+            apiAvailabilityMessage = localized(AppError.missingAPIKey.localizationKey)
+            apiAvailabilityMessageIsError = true
+            return
+        }
+
+        if config.proxyEnabled {
+            let validation = proxyValidationResult
+            if let error = validation.error {
+                apiAvailabilityMessage = displayMessage(for: error)
+                apiAvailabilityMessageIsError = true
+                return
+            }
+        }
+
+        guard !isCheckingAPIAvailability else {
+            return
+        }
+
+        isCheckingAPIAvailability = true
+        apiAvailabilityMessage = nil
+        apiAvailabilityMessageIsError = false
+        defer { isCheckingAPIAvailability = false }
+
+        do {
+            let primaryRoute = try resolvePrimaryRoute()
+
+            let models: [ModelCatalogItem]
+            let usedFallback: Bool
+            if primaryRoute == .proxy {
+                do {
+                    models = try await fetchModelCatalog(apiKey: trimmedAPIKey, route: .proxy)
+                    usedFallback = false
+                } catch let proxyError as AppError where proxyError.isRecoverableProxyFailure {
+                    guard config.allowDirectFallback else {
+                        throw AppError.directFallbackDisabled(proxyError.debugDetails)
+                    }
+
+                    models = try await fetchModelCatalog(apiKey: trimmedAPIKey, route: .directFallback)
+                    usedFallback = true
+                }
+            } else {
+                models = try await fetchModelCatalog(apiKey: trimmedAPIKey, route: primaryRoute)
+                usedFallback = false
+            }
+
+            modelCatalogCache[trimmedAPIKey] = models
+            applyModelCatalogs(from: models)
+
+            let imageReadyCount = GeminiModelCatalogClient.filterImageReadyModels(from: models).count
+            let textReadyCount = GeminiModelCatalogClient.filterTextReadyModels(from: models).count
+
+            if usedFallback {
+                apiAvailabilityMessage = localized(
+                    "settings.api_check_success_fallback",
+                    imageReadyCount,
+                    textReadyCount
+                )
+            } else {
+                apiAvailabilityMessage = localized(
+                    "settings.api_check_success",
+                    imageReadyCount,
+                    textReadyCount
+                )
+            }
+            apiAvailabilityMessageIsError = false
+        } catch let appError as AppError {
+            apiAvailabilityMessage = displayMessage(for: appError)
+            apiAvailabilityMessageIsError = true
+        } catch {
+            apiAvailabilityMessage = userMessage(for: .network(error.localizedDescription))
+            apiAvailabilityMessageIsError = true
         }
     }
 

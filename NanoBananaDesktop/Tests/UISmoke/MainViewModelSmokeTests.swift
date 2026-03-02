@@ -638,6 +638,100 @@ func saveSettingsRefreshesModelCatalogWhenApiKeyChanges() async throws {
 }
 
 @Test
+func checkAPIAvailabilityShowsSuccessMessageWhenCatalogIsReachable() async throws {
+    let apiKey = "key-api-check-success"
+    let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])
+    let viewModel = try await makeIsolatedViewModel(networkClientProvider: networkProvider)
+
+    MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
+        #expect(request.url?.path.contains("/v1beta/models") == true)
+        let json: [String: Any] = [
+            "models": [
+                [
+                    "name": "models/nano-banana-pro-preview",
+                    "displayName": "Nano Banana Pro",
+                    "description": "image generation",
+                    "supportedGenerationMethods": ["generateContent"]
+                ],
+                [
+                    "name": "models/gemini-3-flash-preview",
+                    "displayName": "Gemini Flash",
+                    "description": "general model",
+                    "supportedGenerationMethods": ["generateContent"]
+                ]
+            ]
+        ]
+        let responseData = try JSONSerialization.data(withJSONObject: json)
+        let response = HTTPURLResponse(
+            url: try #require(request.url),
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (response, responseData)
+    }
+
+    await MainActor.run {
+        viewModel.config.apiKey = apiKey
+        viewModel.config.proxyEnabled = true
+        viewModel.config.proxyHost = "proxy.local"
+        viewModel.config.proxyPort = 8080
+        viewModel.checkAPIAvailability()
+    }
+
+    try await waitForAPICheckCompletion(viewModel: viewModel)
+
+    let message = await MainActor.run { viewModel.apiAvailabilityMessage ?? "" }
+    let isError = await MainActor.run { viewModel.apiAvailabilityMessageIsError }
+    #expect(!message.isEmpty)
+    #expect(isError == false)
+
+    MockURLProtocol.removeHandler(forAPIKey: apiKey)
+}
+
+@Test
+func checkAPIAvailabilityShowsGeoErrorMessage() async throws {
+    let apiKey = "key-api-check-geo"
+    let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])
+    let viewModel = try await makeIsolatedViewModel(networkClientProvider: networkProvider)
+
+    MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
+        #expect(request.url?.path.contains("/v1beta/models") == true)
+        let json: [String: Any] = [
+            "error": [
+                "code": 403,
+                "message": "User location is not supported for the API use."
+            ]
+        ]
+        let responseData = try JSONSerialization.data(withJSONObject: json)
+        let response = HTTPURLResponse(
+            url: try #require(request.url),
+            statusCode: 403,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (response, responseData)
+    }
+
+    await MainActor.run {
+        viewModel.config.apiKey = apiKey
+        viewModel.config.proxyEnabled = true
+        viewModel.config.proxyHost = "proxy.local"
+        viewModel.config.proxyPort = 8080
+        viewModel.checkAPIAvailability()
+    }
+
+    try await waitForAPICheckCompletion(viewModel: viewModel)
+
+    let message = await MainActor.run { viewModel.apiAvailabilityMessage ?? "" }
+    let isError = await MainActor.run { viewModel.apiAvailabilityMessageIsError }
+    #expect(message.localizedCaseInsensitiveContains("location"))
+    #expect(isError == true)
+
+    MockURLProtocol.removeHandler(forAPIKey: apiKey)
+}
+
+@Test
 func enhancePromptReplacesPromptWithModelResponse() async throws {
     let apiKey = "key-enhance-success"
     let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])
@@ -982,6 +1076,17 @@ private func waitForPromptFromImageComplete(viewModel: MainViewModel) async thro
         try await Task.sleep(nanoseconds: 50_000_000)
     }
     Issue.record("Prompt-from-image generation did not complete in time")
+}
+
+private func waitForAPICheckCompletion(viewModel: MainViewModel) async throws {
+    for _ in 0..<120 {
+        let isChecking = await MainActor.run { viewModel.isCheckingAPIAvailability }
+        if !isChecking {
+            return
+        }
+        try await Task.sleep(nanoseconds: 50_000_000)
+    }
+    Issue.record("API availability check did not complete in time")
 }
 
 private func setBatchGenerationHandler(

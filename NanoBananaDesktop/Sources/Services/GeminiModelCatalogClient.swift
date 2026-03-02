@@ -144,6 +144,11 @@ actor GeminiModelCatalogClient {
         case 401:
             return .unauthorized
         case 403:
+            if normalizedMessage.contains("location is not supported")
+                || normalizedMessage.contains("user location is not supported")
+                || normalizedMessage.contains("country is not supported") {
+                return .modelCatalogUnavailable(message ?? "User location is not supported for API use")
+            }
             if normalizedMessage.contains("quota") || normalizedMessage.contains("exceeded") {
                 return .quotaExceeded
             }
