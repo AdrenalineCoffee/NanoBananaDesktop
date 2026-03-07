@@ -49,6 +49,11 @@ final class MainViewModel: ObservableObject {
     @Published var apiAvailabilityMessageIsError: Bool = false
     @Published var isEnhancingPrompt: Bool = false
     @Published var isGeneratingPromptFromImage: Bool = false
+    @Published var isPresetNameSheetPresented: Bool = false
+    @Published var presetNameDraft: String = ""
+    @Published var isPresetOverwriteAlertPresented: Bool = false
+    @Published var pendingPresetOverwriteName: String?
+    @Published var selectedPromptPresetID: UUID?
 
     @Published var history: [HistoryRecord] = []
     @Published var historyFilter: HistoryFilter = .all
@@ -214,6 +219,27 @@ final class MainViewModel: ObservableObject {
         !lastOutputPaths.isEmpty
     }
 
+    var sortedPromptPresets: [PromptPreset] {
+        config.promptPresets.sorted { lhs, rhs in
+            if lhs.updatedAt != rhs.updatedAt {
+                return lhs.updatedAt > rhs.updatedAt
+            }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
+    }
+
+    var canSavePromptPreset: Bool {
+        !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var presetsMenuTitle: String {
+        guard let selectedPromptPresetID,
+              let preset = sortedPromptPresets.first(where: { $0.id == selectedPromptPresetID }) else {
+            return localized("main.presets")
+        }
+        return preset.name
+    }
+
     var proxyValidationResult: ProxyValidationResult {
         networkClientProvider.validate(config: config)
     }
@@ -367,6 +393,157 @@ final class MainViewModel: ObservableObject {
         errorMessage = nil
         successMessage = nil
         modelResponseText = nil
+    }
+
+    func presentSavePresetSheet() {
+        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPrompt.isEmpty else {
+            setError(.emptyPrompt)
+            return
+        }
+
+        clearTransientMessages()
+        presetNameDraft = suggestedPresetName(from: trimmedPrompt)
+        isPresetNameSheetPresented = true
+    }
+
+    func cancelPresetSaveFlow() {
+        isPresetNameSheetPresented = false
+        presetNameDraft = ""
+    }
+
+    func commitPresetFromDraft() {
+        let trimmedName = presetNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            errorMessage = localized("error.preset_name_empty")
+            return
+        }
+
+        if let existingPreset = existingPreset(named: trimmedName) {
+            pendingPresetOverwriteName = existingPreset.name
+            isPresetOverwriteAlertPresented = true
+            isPresetNameSheetPresented = false
+            return
+        }
+
+        guard saveCurrentPromptAsPreset(name: trimmedName, overwriteIfExists: false) else {
+            return
+        }
+
+        isPresetNameSheetPresented = false
+        presetNameDraft = ""
+    }
+
+    func confirmPresetOverwrite() {
+        guard let pendingPresetOverwriteName else {
+            isPresetOverwriteAlertPresented = false
+            return
+        }
+
+        guard saveCurrentPromptAsPreset(name: pendingPresetOverwriteName, overwriteIfExists: true) else {
+            return
+        }
+
+        isPresetOverwriteAlertPresented = false
+        self.pendingPresetOverwriteName = nil
+        presetNameDraft = ""
+    }
+
+    func cancelPresetOverwrite() {
+        isPresetOverwriteAlertPresented = false
+        pendingPresetOverwriteName = nil
+    }
+
+    func applyPreset(id: UUID) {
+        guard let index = config.promptPresets.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        clearTransientMessages()
+
+        let preset = config.promptPresets[index]
+        prompt = preset.prompt
+        config.model = preset.imageModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? AppConfig.defaultModel
+            : preset.imageModel
+        resolutionSelection = preset.resolutionSelection
+        aspectRatioSelection = preset.aspectRatioSelection
+        imageCountSelection = min(max(preset.imageCount, 1), 4)
+        selectedPromptPresetID = preset.id
+
+        config.promptPresets[index].updatedAt = Date()
+        normalizePresetOrdering()
+        if persistConfigChanges() {
+            successMessage = localized("status.preset_applied", preset.name)
+        }
+    }
+
+    func renamePreset(id: UUID, newName: String) {
+        let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            errorMessage = localized("error.preset_name_empty")
+            return
+        }
+
+        guard let index = config.promptPresets.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        if let duplicate = existingPreset(named: trimmedName, excluding: id) {
+            errorMessage = localized("error.preset_name_exists", duplicate.name)
+            return
+        }
+
+        config.promptPresets[index].name = trimmedName
+        config.promptPresets[index].updatedAt = Date()
+        normalizePresetOrdering()
+
+        if persistConfigChanges() {
+            successMessage = localized("status.preset_renamed", trimmedName)
+        }
+    }
+
+    func deletePreset(id: UUID) {
+        guard let index = config.promptPresets.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        let deletedName = config.promptPresets[index].name
+        config.promptPresets.remove(at: index)
+        if selectedPromptPresetID == id {
+            selectedPromptPresetID = nil
+        }
+
+        if persistConfigChanges() {
+            successMessage = localized("status.preset_deleted", deletedName)
+        }
+    }
+
+    func presetMetadataText(for preset: PromptPreset) -> String {
+        let resolutionText: String
+        switch preset.resolutionSelection {
+        case .k2:
+            resolutionText = ImageResolution.k2.rawValue
+        case .k4:
+            resolutionText = ImageResolution.k4.rawValue
+        case .auto, .k1:
+            resolutionText = ImageResolution.k1.rawValue
+        }
+
+        let aspectText: String
+        if preset.aspectRatioSelection == .auto {
+            aspectText = localized("main.aspect_ratio_auto_short")
+        } else {
+            aspectText = preset.aspectRatioSelection.manualAspectRatio?.rawValue ?? ImageAspectRatio.square.rawValue
+        }
+
+        return localized(
+            "settings.preset_meta_format",
+            preset.imageModel,
+            resolutionText,
+            aspectText,
+            preset.imageCount
+        )
     }
 
     func checkAPIAvailability() {
@@ -1232,6 +1409,107 @@ final class MainViewModel: ObservableObject {
         default:
             return "image/png"
         }
+    }
+
+    @discardableResult
+    private func saveCurrentPromptAsPreset(name: String, overwriteIfExists: Bool) -> Bool {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            errorMessage = localized("error.preset_name_empty")
+            return false
+        }
+        guard !trimmedPrompt.isEmpty else {
+            setError(.emptyPrompt)
+            return false
+        }
+
+        let now = Date()
+        if let existingIndex = config.promptPresets.firstIndex(where: {
+            $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == trimmedName.lowercased()
+        }) {
+            guard overwriteIfExists else {
+                return false
+            }
+
+            let existingPreset = config.promptPresets[existingIndex]
+            config.promptPresets[existingIndex] = PromptPreset(
+                id: existingPreset.id,
+                name: trimmedName,
+                prompt: trimmedPrompt,
+                imageModel: config.model,
+                resolutionSelection: resolutionSelection,
+                aspectRatioSelection: aspectRatioSelection,
+                imageCount: imageCountSelection,
+                updatedAt: now
+            )
+            selectedPromptPresetID = existingPreset.id
+        } else {
+            let newPreset = PromptPreset(
+                name: trimmedName,
+                prompt: trimmedPrompt,
+                imageModel: config.model,
+                resolutionSelection: resolutionSelection,
+                aspectRatioSelection: aspectRatioSelection,
+                imageCount: imageCountSelection,
+                updatedAt: now
+            )
+            config.promptPresets.append(newPreset)
+            selectedPromptPresetID = newPreset.id
+        }
+
+        normalizePresetOrdering()
+        guard persistConfigChanges() else {
+            return false
+        }
+
+        successMessage = localized("status.preset_saved", trimmedName)
+        return true
+    }
+
+    private func existingPreset(named name: String, excluding id: UUID? = nil) -> PromptPreset? {
+        let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return config.promptPresets.first { preset in
+            if let id, preset.id == id {
+                return false
+            }
+            return preset.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedName
+        }
+    }
+
+    private func normalizePresetOrdering() {
+        config.promptPresets.sort { lhs, rhs in
+            if lhs.updatedAt != rhs.updatedAt {
+                return lhs.updatedAt > rhs.updatedAt
+            }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
+    }
+
+    private func persistConfigChanges() -> Bool {
+        do {
+            try configStore?.save(config)
+            return true
+        } catch let appError as AppError {
+            setError(appError)
+            return false
+        } catch {
+            setError(.ioError(error.localizedDescription))
+            return false
+        }
+    }
+
+    private func suggestedPresetName(from prompt: String) -> String {
+        let words = prompt
+            .split(whereSeparator: \.isWhitespace)
+            .map(String.init)
+            .filter { !$0.isEmpty }
+            .prefix(4)
+        let candidate = words.joined(separator: " ")
+        if !candidate.isEmpty {
+            return candidate
+        }
+        return localized("main.preset_default_name", config.promptPresets.count + 1)
     }
 
     private func detectSourceAspectRatio(from attachments: [AttachedImage]) -> ImageAspectRatio? {

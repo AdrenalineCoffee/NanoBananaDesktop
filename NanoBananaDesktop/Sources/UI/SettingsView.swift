@@ -3,6 +3,14 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var viewModel: MainViewModel
+    let isVisible: Bool
+    @State private var presetForRename: PromptPreset?
+    @State private var presetRenameDraft: String = ""
+    @State private var isRenamePresetSheetPresented: Bool = false
+    @State private var presetForDelete: PromptPreset?
+    @State private var isDeletePresetConfirmationPresented: Bool = false
+    @State private var isPromptEnhancementInstructionExpanded: Bool = false
+    @State private var isPromptFromImageInstructionExpanded: Bool = false
 
     private var noProxyHostsTextBinding: Binding<String> {
         Binding(
@@ -14,6 +22,11 @@ struct SettingsView: View {
                     .filter { !$0.isEmpty }
             }
         )
+    }
+
+    init(viewModel: MainViewModel, isVisible: Bool = true) {
+        self.viewModel = viewModel
+        self.isVisible = isVisible
     }
 
     var body: some View {
@@ -118,44 +131,87 @@ struct SettingsView: View {
                                 .foregroundStyle(viewModel.apiAvailabilityMessageIsError ? .red : .green)
                         }
 
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(viewModel.localized("settings.prompt_enhancement_instruction"))
-                                .font(.callout)
-
-                            TextEditor(text: Binding(
+                        collapsibleEditorSection(
+                            title: viewModel.localized("settings.prompt_enhancement_instruction"),
+                            isExpanded: $isPromptEnhancementInstructionExpanded,
+                            text: Binding(
                                 get: { viewModel.config.promptEnhancementInstruction },
                                 set: { viewModel.config.promptEnhancementInstruction = $0 }
-                            ))
-                            .font(.callout)
-                            .frame(minHeight: 88)
-                            .padding(6)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
                             )
-                        }
+                        )
 
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(viewModel.localized("settings.prompt_from_image_instruction"))
-                                .font(.callout)
-
-                            TextEditor(text: Binding(
+                        collapsibleEditorSection(
+                            title: viewModel.localized("settings.prompt_from_image_instruction"),
+                            isExpanded: $isPromptFromImageInstructionExpanded,
+                            text: Binding(
                                 get: { viewModel.config.promptFromImageInstruction },
                                 set: { viewModel.config.promptFromImageInstruction = $0 }
-                            ))
-                            .font(.callout)
-                            .frame(minHeight: 88)
-                            .padding(6)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
                             )
-                        }
+                        )
 
                         Text(viewModel.localized("settings.model_sync_hint"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                    .padding(12)
+                }
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(viewModel.localized("settings.group.presets"))
+                            .font(.headline)
+
+                        if viewModel.sortedPromptPresets.isEmpty {
+                            Text(viewModel.localized("settings.presets_empty"))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(viewModel.sortedPromptPresets) { preset in
+                                HStack(alignment: .top, spacing: 10) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(preset.name)
+                                            .font(.callout.weight(.semibold))
+                                        Text(viewModel.presetMetadataText(for: preset))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(2)
+                                        Text(preset.prompt)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(2)
+                                            .textSelection(.enabled)
+                                    }
+
+                                    Spacer(minLength: 8)
+
+                                    Button {
+                                        presetForRename = preset
+                                        presetRenameDraft = preset.name
+                                        isRenamePresetSheetPresented = true
+                                    } label: {
+                                        Image(systemName: "pencil")
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .help(viewModel.localized("settings.preset_rename"))
+
+                                    Button(role: .destructive) {
+                                        presetForDelete = preset
+                                        isDeletePresetConfirmationPresented = true
+                                    } label: {
+                                        Image(systemName: "trash")
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .help(viewModel.localized("settings.preset_delete"))
+                                }
+                                .padding(.vertical, 4)
+
+                                if preset.id != viewModel.sortedPromptPresets.last?.id {
+                                    Divider()
+                                }
+                            }
+                        }
+                    }
+                    .padding(12)
                 }
 
                 GroupBox {
@@ -235,6 +291,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    .padding(12)
                 }
 
                 GroupBox {
@@ -270,6 +327,7 @@ struct SettingsView: View {
                             .frame(maxWidth: 180, alignment: .trailing)
                         }
                     }
+                    .padding(12)
                 }
 
                 GroupBox {
@@ -289,6 +347,7 @@ struct SettingsView: View {
                             .frame(width: 220)
                         }
                     }
+                    .padding(12)
                 }
 
                 HStack {
@@ -308,9 +367,32 @@ struct SettingsView: View {
             .padding(24)
         }
         .onAppear {
-            if viewModel.availableTextModels.isEmpty && !viewModel.isLoadingModels {
+            if isVisible && viewModel.availableTextModels.isEmpty && !viewModel.isLoadingModels {
                 viewModel.refreshAvailableModels(trigger: .onAppear)
             }
+        }
+        .onChange(of: isVisible) { newValue in
+            if newValue && viewModel.availableTextModels.isEmpty && !viewModel.isLoadingModels {
+                viewModel.refreshAvailableModels(trigger: .onAppear)
+            }
+        }
+        .sheet(isPresented: $isRenamePresetSheetPresented) {
+            renamePresetSheet
+        }
+        .confirmationDialog(
+            viewModel.localized("settings.preset_delete_confirm_title"),
+            isPresented: $isDeletePresetConfirmationPresented,
+            presenting: presetForDelete
+        ) { preset in
+            Button(viewModel.localized("settings.preset_delete"), role: .destructive) {
+                viewModel.deletePreset(id: preset.id)
+                presetForDelete = nil
+            }
+            Button(viewModel.localized("action.cancel"), role: .cancel) {
+                presetForDelete = nil
+            }
+        } message: { preset in
+            Text(viewModel.localized("settings.preset_delete_confirm_message", preset.name))
         }
     }
 
@@ -359,6 +441,48 @@ struct SettingsView: View {
         return .green
     }
 
+    @ViewBuilder
+    private func collapsibleEditorSection(
+        title: String,
+        isExpanded: Binding<Bool>,
+        text: Binding<String>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isExpanded.wrappedValue.toggle()
+                }
+            } label: {
+                HStack {
+                    Text(title)
+                        .font(.callout)
+                        .foregroundStyle(.primary)
+
+                    Spacer()
+
+                    Image(systemName: isExpanded.wrappedValue ? "chevron.up" : "chevron.down")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded.wrappedValue {
+                TextEditor(text: text)
+                    .font(.callout)
+                    .frame(minHeight: 112)
+                    .padding(10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+                    )
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+
     private var appVersionDisplay: String {
         let rawVersion = (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -378,5 +502,40 @@ struct SettingsView: View {
         case (.none, .none):
             return "dev"
         }
+    }
+
+    private var renamePresetSheet: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(viewModel.localized("settings.preset_rename_title"))
+                .font(.title3.weight(.semibold))
+
+            TextField(
+                viewModel.localized("settings.preset_name_placeholder"),
+                text: $presetRenameDraft
+            )
+            .textFieldStyle(.roundedBorder)
+
+            HStack(spacing: 8) {
+                Spacer()
+                Button(viewModel.localized("action.cancel")) {
+                    isRenamePresetSheetPresented = false
+                    presetForRename = nil
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Button(viewModel.localized("settings.preset_rename")) {
+                    guard let presetForRename else {
+                        isRenamePresetSheetPresented = false
+                        return
+                    }
+                    viewModel.renamePreset(id: presetForRename.id, newName: presetRenameDraft)
+                    isRenamePresetSheetPresented = false
+                    self.presetForRename = nil
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(18)
+        .frame(width: 420)
     }
 }

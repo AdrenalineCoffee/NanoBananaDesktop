@@ -31,5 +31,6 @@ struct NanoBananaDesktopApp: App {
                 .environment(\.locale, Locale(identifier: viewModel.config.language.localeIdentifier))
                 .frame(minWidth: 980, minHeight: 700)
         }
+        .windowStyle(.hiddenTitleBar)
     }
 }

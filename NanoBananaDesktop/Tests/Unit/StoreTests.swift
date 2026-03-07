@@ -280,3 +280,104 @@ func configStorePersistsCustomModelName() throws {
     #expect(reloaded.promptEnhancementInstruction == "Refine this prompt")
     #expect(reloaded.promptFromImageInstruction == "Describe this image as a generation prompt")
 }
+
+@Test
+func configStoreLoadsPresetListFromConfig() throws {
+    let tempDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+    let configURL = tempDir.appendingPathComponent("config.json")
+    let store = try AppConfigStore(configURL: configURL)
+    var config = store.load(currentWorkingDirectory: tempDir).config
+    config.promptPresets = [
+        PromptPreset(
+            name: "Product Hero",
+            prompt: "A hero product shot",
+            imageModel: "nano-banana-pro-preview",
+            resolutionSelection: .k4,
+            aspectRatioSelection: .landscape16x9,
+            imageCount: 2
+        )
+    ]
+    try store.save(config)
+
+    let reloaded = store.load(currentWorkingDirectory: tempDir).config
+    #expect(reloaded.promptPresets.count == 1)
+    #expect(reloaded.promptPresets.first?.name == "Product Hero")
+    #expect(reloaded.promptPresets.first?.resolutionSelection == .k4)
+    #expect(reloaded.promptPresets.first?.aspectRatioSelection == .landscape16x9)
+    #expect(reloaded.promptPresets.first?.imageCount == 2)
+}
+
+@Test
+func configStoreNormalizesPresetDuplicatesAndInvalidPresetRows() throws {
+    let tempDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+    let configURL = tempDir.appendingPathComponent("config.json")
+    let rawJSON = """
+    {
+      "apiKey": "abc",
+      "model": "nano-banana-pro-preview",
+      "promptEnhancementModel": "gemini-3-flash-preview",
+      "promptEnhancementInstruction": "Improve prompt",
+      "promptFromImageInstruction": "Describe image",
+      "language": "en",
+      "defaultOutputDir": "/tmp",
+      "requestTimeoutSec": 180,
+      "promptPresets": [
+        {
+          "id": "2a6d6f40-4d4a-4f7f-90a9-4a7cc2d54891",
+          "name": "Hero",
+          "prompt": "First value",
+          "imageModel": "models/nano-banana-pro-preview",
+          "resolutionSelection": "k1",
+          "aspectRatioSelection": "auto",
+          "imageCount": 1,
+          "updatedAt": "2026-03-01T10:00:00Z"
+        },
+        {
+          "id": "3e332661-c1e9-4f71-8e8b-5e7e479f2612",
+          "name": "hero",
+          "prompt": "Second value",
+          "imageModel": "nano-banana-pro-preview",
+          "resolutionSelection": "k2",
+          "aspectRatioSelection": "landscape16x9",
+          "imageCount": 3,
+          "updatedAt": "2026-03-02T10:00:00Z"
+        },
+        {
+          "id": "a588261f-4894-4cd2-b59c-56fed0f501f5",
+          "name": "",
+          "prompt": "Should be ignored",
+          "imageModel": "nano-banana-pro-preview",
+          "resolutionSelection": "k1",
+          "aspectRatioSelection": "auto",
+          "imageCount": 1,
+          "updatedAt": "2026-03-02T10:00:00Z"
+        },
+        {
+          "id": "0db5d89e-63eb-4bb9-a0e4-9416140a9388",
+          "name": "Broken",
+          "prompt": "",
+          "imageModel": "nano-banana-pro-preview",
+          "resolutionSelection": "k1",
+          "aspectRatioSelection": "auto",
+          "imageCount": 1,
+          "updatedAt": "2026-03-02T10:00:00Z"
+        }
+      ]
+    }
+    """
+    try rawJSON.data(using: .utf8)?.write(to: configURL)
+
+    let store = try AppConfigStore(configURL: configURL)
+    let result = store.load(currentWorkingDirectory: tempDir)
+
+    #expect(result.config.promptPresets.count == 1)
+    #expect(result.config.promptPresets.first?.name == "hero")
+    #expect(result.config.promptPresets.first?.prompt == "Second value")
+    #expect(result.config.promptPresets.first?.resolutionSelection == .k2)
+}

@@ -64,6 +64,7 @@ final class AppConfigStore {
         let trimmedPromptModel = config.promptEnhancementModel.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedPromptFromImageInstruction = config.promptFromImageInstruction.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedEnhancementInstruction = config.promptEnhancementInstruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedPromptPresets = normalizedPromptPresets(config.promptPresets)
 
         var normalizedImageModel = normalizedModelName(from: trimmedImageModel, fallback: AppConfig.defaultModel)
         if normalizedImageModel == AppConfig.legacyDefaultImageModel {
@@ -136,6 +137,7 @@ final class AppConfigStore {
             promptEnhancementModel: normalizedPromptModel,
             promptFromImageInstruction: normalizedPromptFromImageInstruction,
             promptEnhancementInstruction: normalizedEnhancementInstruction,
+            promptPresets: normalizedPromptPresets,
             language: config.language,
             defaultOutputDir: outputDirectory,
             requestTimeoutSec: timeout,
@@ -163,6 +165,46 @@ final class AppConfigStore {
         }
 
         return trimmed
+    }
+
+    private func normalizedPromptPresets(_ presets: [PromptPreset]) -> [PromptPreset] {
+        var dedupByName: [String: PromptPreset] = [:]
+
+        for preset in presets {
+            let name = preset.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let prompt = preset.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty, !prompt.isEmpty else {
+                continue
+            }
+
+            let normalizedModel = normalizedModelName(from: preset.imageModel, fallback: AppConfig.defaultModel)
+            let normalizedPreset = PromptPreset(
+                id: preset.id,
+                name: name,
+                prompt: prompt,
+                imageModel: normalizedModel,
+                resolutionSelection: preset.resolutionSelection,
+                aspectRatioSelection: preset.aspectRatioSelection,
+                imageCount: preset.imageCount,
+                updatedAt: preset.updatedAt
+            )
+
+            let key = name.lowercased()
+            if let existing = dedupByName[key] {
+                if normalizedPreset.updatedAt >= existing.updatedAt {
+                    dedupByName[key] = normalizedPreset
+                }
+            } else {
+                dedupByName[key] = normalizedPreset
+            }
+        }
+
+        return dedupByName.values.sorted { lhs, rhs in
+            if lhs.updatedAt != rhs.updatedAt {
+                return lhs.updatedAt > rhs.updatedAt
+            }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
     }
 
     private func backupCorruptedConfigIfNeeded() {

@@ -3,6 +3,7 @@ import SwiftUI
 
 struct HistoryView: View {
     @ObservedObject var viewModel: MainViewModel
+    let isVisible: Bool
     let onReuseRequested: () -> Void
 
     @State private var fullscreenImage: NSImage?
@@ -20,8 +21,13 @@ struct HistoryView: View {
         return formatter
     }()
 
-    init(viewModel: MainViewModel, onReuseRequested: @escaping () -> Void = {}) {
+    init(
+        viewModel: MainViewModel,
+        isVisible: Bool = true,
+        onReuseRequested: @escaping () -> Void = {}
+    ) {
         self.viewModel = viewModel
+        self.isVisible = isVisible
         self.onReuseRequested = onReuseRequested
     }
 
@@ -200,13 +206,24 @@ struct HistoryView: View {
             }
         }
         .onAppear {
-            prefetchInitialThumbnails()
+            if isVisible {
+                prefetchInitialThumbnails()
+            }
+        }
+        .onChange(of: isVisible) { newValue in
+            if newValue {
+                prefetchInitialThumbnails()
+            }
         }
         .onChange(of: viewModel.historyFilter) { _ in
-            prefetchInitialThumbnails()
+            if isVisible {
+                prefetchInitialThumbnails()
+            }
         }
         .onChange(of: viewModel.historyRouteFilter) { _ in
-            prefetchInitialThumbnails()
+            if isVisible {
+                prefetchInitialThumbnails()
+            }
         }
     }
 

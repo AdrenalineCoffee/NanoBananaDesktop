@@ -94,6 +94,7 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
     var promptEnhancementModel: String
     var promptFromImageInstruction: String
     var promptEnhancementInstruction: String
+    var promptPresets: [PromptPreset]
     var language: AppLanguage
     var defaultOutputDir: String
     var requestTimeoutSec: Int
@@ -132,6 +133,7 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
             promptEnhancementModel: defaultPromptEnhancementModel,
             promptFromImageInstruction: defaultPromptFromImageInstruction,
             promptEnhancementInstruction: defaultPromptEnhancementInstruction,
+            promptPresets: [],
             language: .systemDefault(),
             defaultOutputDir: outputDirectory.path,
             requestTimeoutSec: defaultRequestTimeoutSec,
@@ -172,6 +174,7 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
         case promptEnhancementModel
         case promptFromImageInstruction
         case promptEnhancementInstruction
+        case promptPresets
         case language
         case defaultOutputDir
         case requestTimeoutSec
@@ -192,6 +195,7 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
         promptEnhancementModel: String,
         promptFromImageInstruction: String,
         promptEnhancementInstruction: String,
+        promptPresets: [PromptPreset],
         language: AppLanguage,
         defaultOutputDir: String,
         requestTimeoutSec: Int,
@@ -210,6 +214,7 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
         self.promptEnhancementModel = promptEnhancementModel
         self.promptFromImageInstruction = promptFromImageInstruction
         self.promptEnhancementInstruction = promptEnhancementInstruction
+        self.promptPresets = promptPresets
         self.language = language
         self.defaultOutputDir = defaultOutputDir
         self.requestTimeoutSec = requestTimeoutSec
@@ -235,6 +240,7 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
         promptFromImageInstruction = try container.decodeIfPresent(String.self, forKey: .promptFromImageInstruction)
             ?? defaults.promptFromImageInstruction
         promptEnhancementInstruction = try container.decodeIfPresent(String.self, forKey: .promptEnhancementInstruction) ?? defaults.promptEnhancementInstruction
+        promptPresets = try container.decodeIfPresent([PromptPreset].self, forKey: .promptPresets) ?? defaults.promptPresets
         language = try container.decodeIfPresent(AppLanguage.self, forKey: .language) ?? defaults.language
         defaultOutputDir = try container.decodeIfPresent(String.self, forKey: .defaultOutputDir) ?? defaults.defaultOutputDir
         requestTimeoutSec = try container.decodeIfPresent(Int.self, forKey: .requestTimeoutSec) ?? defaults.requestTimeoutSec
@@ -269,6 +275,7 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
         try container.encode(promptEnhancementModel, forKey: .promptEnhancementModel)
         try container.encode(promptFromImageInstruction, forKey: .promptFromImageInstruction)
         try container.encode(promptEnhancementInstruction, forKey: .promptEnhancementInstruction)
+        try container.encode(promptPresets, forKey: .promptPresets)
         try container.encode(language, forKey: .language)
         try container.encode(defaultOutputDir, forKey: .defaultOutputDir)
         try container.encode(requestTimeoutSec, forKey: .requestTimeoutSec)

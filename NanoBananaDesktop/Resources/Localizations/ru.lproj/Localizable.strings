@@ -9,6 +9,14 @@
 "main.prompt_drop_hint" = "Введите запрос или перетащите изображения в это поле";
 "main.prompt_convert_zone" = "Превратить в промпт";
 "main.prompt_convert_zone_hint" = "Перетащите фото в нижнюю зону для генерации промпта";
+"main.presets" = "Пресеты";
+"main.presets_empty" = "Пресеты ещё не сохранены";
+"main.save_preset_sheet_title" = "Сохранить как пресет";
+"main.save_preset_sheet_hint" = "Введите название для текущего промпта и параметров изображения.";
+"main.save_preset_name_placeholder" = "Например: Product Hero";
+"main.preset_overwrite_title" = "Пресет уже существует";
+"main.preset_overwrite_message" = "Пресет «%@» уже есть. Заменить его текущим промптом?";
+"main.preset_default_name" = "Пресет %d";
 "main.image_settings" = "Параметры изображения";
 "main.model" = "Нейросеть";
 "main.model_refresh" = "Обновить список моделей";
@@ -35,6 +43,7 @@
 
 "settings.title" = "Настройки";
 "settings.group.api" = "API";
+"settings.group.presets" = "Пресеты";
 "settings.group.proxy" = "Прокси";
 "settings.group.output" = "Вывод";
 "settings.group.localization" = "Локализация";
@@ -45,6 +54,14 @@
 "settings.prompt_from_image_instruction" = "Запрос для генерации промпта по загруженной фотографии";
 "settings.prompt_enhancement_instruction" = "Шаблон улучшения промпта";
 "settings.model_sync_hint" = "Эта модель синхронизирована с выбором нейросети на экране Создание.";
+"settings.presets_empty" = "Сохранённых пресетов пока нет.";
+"settings.preset_meta_format" = "%@ • %@ • %@ • %d";
+"settings.preset_rename" = "Переименовать";
+"settings.preset_delete" = "Удалить";
+"settings.preset_rename_title" = "Переименовать пресет";
+"settings.preset_name_placeholder" = "Название пресета";
+"settings.preset_delete_confirm_title" = "Удалить пресет?";
+"settings.preset_delete_confirm_message" = "Пресет «%@» будет удалён без возможности восстановления.";
 "settings.text_models_status" = "Статус text-моделей";
 "settings.text_models_loading" = "Загрузка...";
 "settings.text_models_not_loaded" = "Не загружены";
@@ -113,6 +130,9 @@
 "action.browse" = "Обзор";
 "action.enhance_prompt" = "Улучшить промпт";
 "action.enhancing_prompt" = "Улучшаем промпт...";
+"action.save_preset" = "Сохранить пресет";
+"action.cancel" = "Отмена";
+"action.replace" = "Заменить";
 "action.generate" = "Сгенерировать";
 "action.generating" = "Генерация...";
 "action.save_settings" = "Сохранить настройки";
@@ -123,6 +143,10 @@
 "status.prompt_enhanced" = "Промпт успешно улучшен.";
 "status.prompt_from_image_in_progress" = "Генерируем промпт по изображению...";
 "status.prompt_from_image_done" = "Промпт по изображению готов.";
+"status.preset_saved" = "Пресет «%@» сохранён.";
+"status.preset_applied" = "Пресет «%@» применён.";
+"status.preset_renamed" = "Пресет переименован: %@.";
+"status.preset_deleted" = "Пресет удалён: %@.";
 
 "warning.config_recovered" = "Файл конфигурации был поврежден и восстановлен по умолчанию.";
 "warning.config_store_unavailable" = "Хранилище конфигурации недоступно, используются настройки в памяти.";
@@ -131,6 +155,8 @@
 "error.missing_api_key" = "Не указан API ключ. Добавьте GEMINI API key в Настройках.";
 "error.prompt_from_image_no_valid_file" = "Не удалось найти валидное изображение для генерации промпта.";
 "error.prompt_from_image_model_not_supported" = "Выбранная модель не поддерживает загрузку изображений для работы с промптом.";
+"error.preset_name_empty" = "Введите название пресета.";
+"error.preset_name_exists" = "Пресет с таким именем уже существует: %@.";
 "error.missing_input_image" = "Для режима редактирования выберите входное изображение.";
 "error.unreadable_input_image" = "Не удалось прочитать входной файл изображения.";
 "error.unsupported_attachment_format" = "Неподдерживаемый формат файла: %@";

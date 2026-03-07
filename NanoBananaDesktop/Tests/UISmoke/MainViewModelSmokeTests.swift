@@ -796,6 +796,89 @@ func enhancePromptFailsWhenPromptIsEmpty() async throws {
 }
 
 @Test
+func saveAndApplyPresetReplacesPromptAndParamsAndKeepsAttachments() async throws {
+    let viewModel = try await makeIsolatedViewModel()
+    let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+    let attachmentURL = tempDirectory.appendingPathComponent("ref.png")
+    try tinyPNGData.write(to: attachmentURL)
+
+    let presetID = await MainActor.run { () -> UUID? in
+        viewModel.prompt = "Preset prompt content"
+        viewModel.config.model = "nano-banana-pro-preview"
+        viewModel.resolutionSelection = .k4
+        viewModel.aspectRatioSelection = .landscape16x9
+        viewModel.imageCountSelection = 3
+        viewModel.attachedImages = [
+            AttachedImage(fileURL: attachmentURL, displayName: "ref.png", mentionToken: "@ref", thumbnail: nil)
+        ]
+
+        viewModel.presetNameDraft = "Cinema preset"
+        viewModel.commitPresetFromDraft()
+
+        return viewModel.sortedPromptPresets.first?.id
+    }
+    let appliedPresetID = try #require(presetID)
+
+    await MainActor.run {
+        viewModel.prompt = "Another prompt"
+        viewModel.config.model = "gemini-3-pro-image-preview"
+        viewModel.resolutionSelection = .k1
+        viewModel.aspectRatioSelection = .auto
+        viewModel.imageCountSelection = 1
+        viewModel.applyPreset(id: appliedPresetID)
+    }
+
+    let prompt = await MainActor.run { viewModel.prompt }
+    let model = await MainActor.run { viewModel.config.model }
+    let resolution = await MainActor.run { viewModel.resolutionSelection }
+    let aspect = await MainActor.run { viewModel.aspectRatioSelection }
+    let imageCount = await MainActor.run { viewModel.imageCountSelection }
+    let attachments = await MainActor.run { viewModel.attachedImages }
+
+    #expect(prompt == "Preset prompt content")
+    #expect(model == "nano-banana-pro-preview")
+    #expect(resolution == .k4)
+    #expect(aspect == .landscape16x9)
+    #expect(imageCount == 3)
+    #expect(attachments.count == 1)
+    #expect(attachments.first?.mentionToken == "@ref")
+}
+
+@Test
+func duplicatePresetTriggersOverwriteFlowAndCanReplace() async throws {
+    let viewModel = try await makeIsolatedViewModel()
+
+    await MainActor.run {
+        viewModel.prompt = "Initial preset body"
+        viewModel.presetNameDraft = "Reusable"
+        viewModel.commitPresetFromDraft()
+
+        viewModel.prompt = "Updated preset body"
+        viewModel.presetNameDraft = "reusable"
+        viewModel.commitPresetFromDraft()
+    }
+
+    let overwriteShown = await MainActor.run { viewModel.isPresetOverwriteAlertPresented }
+    let pendingName = await MainActor.run { viewModel.pendingPresetOverwriteName }
+    let beforeConfirmPrompt = await MainActor.run { viewModel.sortedPromptPresets.first?.prompt }
+    #expect(overwriteShown == true)
+    #expect(pendingName?.lowercased() == "reusable")
+    #expect(beforeConfirmPrompt == "Initial preset body")
+
+    await MainActor.run {
+        viewModel.confirmPresetOverwrite()
+    }
+
+    let presets = await MainActor.run { viewModel.sortedPromptPresets }
+    #expect(presets.count == 1)
+    #expect(presets.first?.prompt == "Updated preset body")
+    let overwriteHidden = await MainActor.run { viewModel.isPresetOverwriteAlertPresented }
+    #expect(overwriteHidden == false)
+}
+
+@Test
 func generatePromptFromImageHappyPathReplacesPromptAndTogglesProgressState() async throws {
     let apiKey = "key-smoke-prompt-from-image"
     let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])

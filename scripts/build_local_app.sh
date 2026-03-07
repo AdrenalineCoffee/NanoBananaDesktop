@@ -52,9 +52,9 @@ cat > "$APP_PATH/Contents/Info.plist" <<PLIST
   <key>CFBundleIdentifier</key>
   <string>com.nanobanana.desktop.local</string>
   <key>CFBundleVersion</key>
-  <string>1</string>
+  <string>102</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.0</string>
+  <string>1.0.2</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleExecutable</key>

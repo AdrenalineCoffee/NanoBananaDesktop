@@ -2,19 +2,21 @@
 
 Native macOS desktop app for image generation and image-based prompt workflows using Google Gemini image-capable models, with proxy-aware networking and local history.
 
+Current version: `1.0.2`
+
 ## Screenshots
 ![Main UI](Screenshot/Screen_1.png)
 ![Generated result UI](Screenshot/Screen_2.png)
 
 ## Features
-- Image generation and editing (prompt + optional image references).
-- Batch generation: 1 to 4 images per request.
-- Prompt enhancement and prompt-from-image flow.
-- Drag & drop attachments with `@mention` insertion.
-- Proxy-first networking (HTTP/HTTPS/SOCKS5) with optional direct fallback.
-- Resolution, aspect ratio, and model selection from available Gemini models.
-- Local history with reuse, copy actions, thumbnails, and fullscreen preview.
-- RU/EN localization and configurable app settings.
+- Image generation and editing with prompt + optional image references.
+- Batch generation from 1 to 4 images per request.
+- Prompt enhancement, prompt-from-image, and reusable prompt presets.
+- Drag and drop attachments with `@mention` insertion into the prompt.
+- Proxy-aware networking with HTTP/HTTPS/SOCKS5 support and optional direct mode.
+- Model discovery, API availability check, resolution, aspect ratio, and image count controls.
+- Local history with thumbnails, reuse, copy actions, fullscreen preview, and Finder reveal.
+- Native-style glass UI, RU/EN localization, and configurable desktop settings.
 
 ## Requirements
 - macOS 13+
@@ -46,6 +48,7 @@ This creates:
 - `NanoBananaDesktop.app` in the repository root
 - ad-hoc signature for local launch
 - embedded icon from `NanoBananaDesktop/Resources/AppIcon.icns` (if file exists)
+- app version `1.0.2`
 
 Manual equivalent steps:
 
@@ -86,9 +89,9 @@ cat > "$APP_PATH/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIdentifier</key>
   <string>com.nanobanana.desktop.local</string>
   <key>CFBundleVersion</key>
-  <string>1</string>
+  <string>102</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.0</string>
+  <string>1.0.2</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleExecutable</key>

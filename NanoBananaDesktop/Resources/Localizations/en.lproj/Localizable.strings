@@ -9,6 +9,14 @@
 "main.prompt_drop_hint" = "Type your request here or drag images into this field";
 "main.prompt_convert_zone" = "Convert to prompt";
 "main.prompt_convert_zone_hint" = "Drop an image in the lower zone to generate a prompt";
+"main.presets" = "Presets";
+"main.presets_empty" = "No presets saved yet";
+"main.save_preset_sheet_title" = "Save as preset";
+"main.save_preset_sheet_hint" = "Enter a name for the current prompt and image settings.";
+"main.save_preset_name_placeholder" = "Example: Product Hero";
+"main.preset_overwrite_title" = "Preset already exists";
+"main.preset_overwrite_message" = "Preset \"%@\" already exists. Replace it with the current prompt?";
+"main.preset_default_name" = "Preset %d";
 "main.image_settings" = "Image settings";
 "main.model" = "Model";
 "main.model_refresh" = "Refresh model list";
@@ -35,6 +43,7 @@
 
 "settings.title" = "Settings";
 "settings.group.api" = "API";
+"settings.group.presets" = "Presets";
 "settings.group.proxy" = "Proxy";
 "settings.group.output" = "Output";
 "settings.group.localization" = "Localization";
@@ -45,6 +54,14 @@
 "settings.prompt_from_image_instruction" = "Instruction for generating a prompt from dropped photo";
 "settings.prompt_enhancement_instruction" = "Prompt enhancement template";
 "settings.model_sync_hint" = "This model is synced with the model picker on the Create screen.";
+"settings.presets_empty" = "No saved presets yet.";
+"settings.preset_meta_format" = "%@ • %@ • %@ • %d";
+"settings.preset_rename" = "Rename";
+"settings.preset_delete" = "Delete";
+"settings.preset_rename_title" = "Rename preset";
+"settings.preset_name_placeholder" = "Preset name";
+"settings.preset_delete_confirm_title" = "Delete preset?";
+"settings.preset_delete_confirm_message" = "Preset \"%@\" will be removed permanently.";
 "settings.text_models_status" = "Text model status";
 "settings.text_models_loading" = "Loading...";
 "settings.text_models_not_loaded" = "Not loaded";
@@ -113,6 +130,9 @@
 "action.browse" = "Browse";
 "action.enhance_prompt" = "Enhance prompt";
 "action.enhancing_prompt" = "Enhancing prompt...";
+"action.save_preset" = "Save preset";
+"action.cancel" = "Cancel";
+"action.replace" = "Replace";
 "action.generate" = "Generate";
 "action.generating" = "Generating...";
 "action.save_settings" = "Save settings";
@@ -123,6 +143,10 @@
 "status.prompt_enhanced" = "Prompt updated successfully.";
 "status.prompt_from_image_in_progress" = "Generating prompt from image...";
 "status.prompt_from_image_done" = "Prompt from image is ready.";
+"status.preset_saved" = "Preset \"%@\" saved.";
+"status.preset_applied" = "Preset \"%@\" applied.";
+"status.preset_renamed" = "Preset renamed: %@.";
+"status.preset_deleted" = "Preset deleted: %@.";
 
 "warning.config_recovered" = "Config was corrupted and restored to defaults.";
 "warning.config_store_unavailable" = "Config store is unavailable, running with in-memory defaults.";
@@ -131,6 +155,8 @@
 "error.missing_api_key" = "API key is missing. Add GEMINI API key in Settings.";
 "error.prompt_from_image_no_valid_file" = "No valid image file found for prompt generation.";
 "error.prompt_from_image_model_not_supported" = "Selected model does not support image input for prompt work.";
+"error.preset_name_empty" = "Preset name is required.";
+"error.preset_name_exists" = "A preset with this name already exists: %@.";
 "error.missing_input_image" = "Select an input image for edit mode.";
 "error.unreadable_input_image" = "Cannot read input image file.";
 "error.unsupported_attachment_format" = "Unsupported attachment format: %@";

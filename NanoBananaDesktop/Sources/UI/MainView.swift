@@ -27,6 +27,7 @@ struct MainView: View {
     private let inspectorMinWidth: CGFloat = 460
     private let inspectorMaxWidth: CGFloat = 560
     private let panelCornerRadius: CGFloat = 14
+    private let dividerColor = Color.black.opacity(0.42)
 
     var body: some View {
         ZStack {
@@ -43,7 +44,7 @@ struct MainView: View {
                         canvasPane
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                        Divider()
+                        darkVerticalDivider
 
                         inspectorPane
                             .frame(width: inspectorWidth)
@@ -67,6 +68,27 @@ struct MainView: View {
         .onAppear {
             viewModel.handleMainViewAppeared()
         }
+        .sheet(isPresented: $viewModel.isPresetNameSheetPresented) {
+            presetNameSheet
+        }
+        .alert(
+            viewModel.localized("main.preset_overwrite_title"),
+            isPresented: $viewModel.isPresetOverwriteAlertPresented
+        ) {
+            Button(viewModel.localized("action.cancel"), role: .cancel) {
+                viewModel.cancelPresetOverwrite()
+            }
+            Button(viewModel.localized("action.replace"), role: .destructive) {
+                viewModel.confirmPresetOverwrite()
+            }
+        } message: {
+            Text(
+                viewModel.localized(
+                    "main.preset_overwrite_message",
+                    viewModel.pendingPresetOverwriteName ?? ""
+                )
+            )
+        }
     }
 
     private var mainBackground: some View {
@@ -84,13 +106,39 @@ struct MainView: View {
     private var headerBar: some View {
         HStack {
             Text(viewModel.localized("main.title"))
-                .font(.system(size: 46, weight: .semibold, design: .rounded))
+                .font(.system(size: 31, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white.opacity(0.95))
+
             Spacer()
+
+            proxyStatusPill
         }
         .padding(.horizontal, 24)
-        .frame(height: 82)
+        .frame(height: 76)
         .background(Color.black.opacity(0.16))
+        .overlay(alignment: .bottom) {
+            darkHorizontalDivider
+        }
+    }
+
+    private var proxyStatusPill: some View {
+        HStack(spacing: 6) {
+            Image(systemName: viewModel.proxyStatusSymbol)
+            Text(viewModel.localized(viewModel.proxyStatusKey))
+            Text(viewModel.proxySummary)
+                .foregroundStyle(.secondary)
+        }
+        .font(.caption)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color.white.opacity(0.06))
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+        )
     }
 
     private var canvasPane: some View {
@@ -101,6 +149,18 @@ struct MainView: View {
             outputPanel
         }
         .padding(16)
+    }
+
+    private var darkHorizontalDivider: some View {
+        Rectangle()
+            .fill(dividerColor)
+            .frame(height: 1)
+    }
+
+    private var darkVerticalDivider: some View {
+        Rectangle()
+            .fill(dividerColor)
+            .frame(width: 1)
     }
 
     private var canvasContent: some View {
@@ -372,6 +432,15 @@ struct MainView: View {
                 if viewModel.isGeneratingPromptFromImage {
                     promptLoadingOverlay
                 }
+
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        promptSavePresetFloatingButton
+                    }
+                }
+                .padding(10)
             }
 
             HStack(spacing: 8) {
@@ -390,6 +459,31 @@ struct MainView: View {
                     ProgressView()
                         .scaleEffect(0.8)
                 }
+
+                Spacer(minLength: 8)
+
+                Menu {
+                    if viewModel.sortedPromptPresets.isEmpty {
+                        Text(viewModel.localized("main.presets_empty"))
+                    } else {
+                        ForEach(viewModel.sortedPromptPresets) { preset in
+                            Button {
+                                viewModel.applyPreset(id: preset.id)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(preset.name)
+                                    Text(viewModel.presetMetadataText(for: preset))
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    Label(viewModel.presetsMenuTitle, systemImage: "square.stack.3d.up")
+                        .labelStyle(.titleAndIcon)
+                }
+                .menuStyle(.borderlessButton)
             }
 
             attachmentStrip
@@ -426,6 +520,8 @@ struct MainView: View {
                         .foregroundStyle(.secondary)
                 }
                 .foregroundStyle(.white.opacity(0.94))
+                .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
@@ -710,5 +806,60 @@ struct MainView: View {
             )
         }
         .allowsHitTesting(true)
+    }
+
+    private var promptSavePresetFloatingButton: some View {
+        Button {
+            viewModel.presentSavePresetSheet()
+        } label: {
+            Text("+")
+                .font(.title3.weight(.bold))
+                .frame(width: 30, height: 30)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.white.opacity(viewModel.canSavePromptPreset ? 0.96 : 0.52))
+        .background(
+            Circle()
+                .fill(viewModel.canSavePromptPreset ? Color.blue.opacity(0.90) : Color.white.opacity(0.12))
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.22), lineWidth: 1)
+                )
+        )
+        .shadow(color: Color.black.opacity(0.22), radius: 6, x: 0, y: 3)
+        .disabled(!viewModel.canSavePromptPreset)
+        .help(viewModel.localized("action.save_preset"))
+    }
+
+    private var presetNameSheet: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(viewModel.localized("main.save_preset_sheet_title"))
+                .font(.title3.weight(.semibold))
+
+            Text(viewModel.localized("main.save_preset_sheet_hint"))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            TextField(
+                viewModel.localized("main.save_preset_name_placeholder"),
+                text: $viewModel.presetNameDraft
+            )
+            .textFieldStyle(.roundedBorder)
+
+            HStack(spacing: 8) {
+                Spacer()
+                Button(viewModel.localized("action.cancel")) {
+                    viewModel.cancelPresetSaveFlow()
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Button(viewModel.localized("action.save_preset")) {
+                    viewModel.commitPresetFromDraft()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(18)
+        .frame(width: 420)
     }
 }
