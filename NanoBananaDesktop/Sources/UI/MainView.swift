@@ -23,11 +23,20 @@ struct MainView: View {
     @ObservedObject var viewModel: MainViewModel
     @State private var fullscreenImage: NSImage?
     @State private var promptDropTarget: PromptDropTarget?
+    @State private var isModelSectionExpanded: Bool = true
+    @State private var isResolutionSectionExpanded: Bool = true
+    @State private var isAspectRatioSectionExpanded: Bool = true
+    @State private var isImageCountSectionExpanded: Bool = true
+    @SceneStorage("main.inspectorWidth") private var storedInspectorWidth: Double = 0
+    @State private var dragStartInspectorWidth: CGFloat?
+    @State private var isInspectorDividerHovered: Bool = false
 
-    private let inspectorMinWidth: CGFloat = 460
-    private let inspectorMaxWidth: CGFloat = 560
+    private let inspectorMinWidth: CGFloat = 360
+    private let inspectorPreferredWidth: CGFloat = 500
     private let panelCornerRadius: CGFloat = 14
     private let dividerColor = Color.black.opacity(0.42)
+    private let borderColor = Color.white.opacity(0.14)
+    private let headerBarHeight: CGFloat = 52
 
     var body: some View {
         ZStack {
@@ -35,7 +44,7 @@ struct MainView: View {
                 .ignoresSafeArea()
 
             GeometryReader { geometry in
-                let inspectorWidth = computedInspectorWidth(totalWidth: geometry.size.width)
+                let inspectorWidth = resolvedInspectorWidth(totalWidth: geometry.size.width)
 
                 VStack(spacing: 0) {
                     headerBar
@@ -44,7 +53,7 @@ struct MainView: View {
                         canvasPane
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                        darkVerticalDivider
+                        inspectorResizeDivider(totalWidth: geometry.size.width)
 
                         inspectorPane
                             .frame(width: inspectorWidth)
@@ -104,17 +113,22 @@ struct MainView: View {
     }
 
     private var headerBar: some View {
-        HStack {
+        ZStack {
             Text(viewModel.localized("main.title"))
-                .font(.system(size: 31, weight: .semibold, design: .rounded))
+                .font(.system(size: 21, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white.opacity(0.95))
+                .frame(maxWidth: .infinity, alignment: .center)
 
-            Spacer()
+            HStack {
+                Spacer()
 
-            proxyStatusPill
+                if viewModel.config.proxyEnabled {
+                    proxyStatusPill
+                }
+            }
         }
         .padding(.horizontal, 24)
-        .frame(height: 76)
+        .frame(height: headerBarHeight)
         .background(Color.black.opacity(0.16))
         .overlay(alignment: .bottom) {
             darkHorizontalDivider
@@ -136,19 +150,23 @@ struct MainView: View {
                 .fill(Color.white.opacity(0.06))
                 .overlay(
                     Capsule(style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        .stroke(borderColor, lineWidth: 1)
                 )
         )
     }
 
     private var canvasPane: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 0) {
             canvasContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(16)
+
+            darkHorizontalDivider
 
             outputPanel
+                .padding(16)
         }
-        .padding(16)
+        .background(Color.black.opacity(0.12))
     }
 
     private var darkHorizontalDivider: some View {
@@ -163,36 +181,78 @@ struct MainView: View {
             .frame(width: 1)
     }
 
+    private func inspectorResizeDivider(totalWidth: CGFloat) -> some View {
+        Rectangle()
+            .fill(Color.clear)
+            .frame(width: 12)
+            .background {
+                Rectangle()
+                    .fill(isInspectorDividerHovered || dragStartInspectorWidth != nil ? borderColor.opacity(0.95) : dividerColor)
+                    .frame(width: 1)
+            }
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                isInspectorDividerHovered = hovering
+                if hovering {
+                    NSCursor.resizeLeftRight.set()
+                } else {
+                    NSCursor.arrow.set()
+                }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        let startWidth = dragStartInspectorWidth ?? resolvedInspectorWidth(totalWidth: totalWidth)
+                        if dragStartInspectorWidth == nil {
+                            dragStartInspectorWidth = startWidth
+                        }
+                        let updatedWidth = clampedInspectorWidth(
+                            startWidth - value.translation.width,
+                            totalWidth: totalWidth
+                        )
+                        storedInspectorWidth = updatedWidth
+                    }
+                    .onEnded { value in
+                        let startWidth = dragStartInspectorWidth ?? resolvedInspectorWidth(totalWidth: totalWidth)
+                        let updatedWidth = clampedInspectorWidth(
+                            startWidth - value.translation.width,
+                            totalWidth: totalWidth
+                        )
+                        storedInspectorWidth = updatedWidth
+                        dragStartInspectorWidth = nil
+                        if !isInspectorDividerHovered {
+                            NSCursor.arrow.set()
+                        }
+                    }
+            )
+            .help(viewModel.localized("main.inspector_resize_help"))
+    }
+
     private var canvasContent: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
-                .fill(Color.black.opacity(0.26))
-                .overlay(
-                    RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-
             if !viewModel.lastGeneratedImages.isEmpty {
                 previewGrid(images: viewModel.lastGeneratedImages)
-                .padding(18)
+                    .padding(18)
             } else {
-                VStack(spacing: 12) {
+                VStack(spacing: 16) {
                     Image(systemName: "photo.artframe")
-                        .font(.system(size: 36, weight: .regular))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 46, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.62))
 
                     Text(viewModel.localized("main.canvas_empty_title"))
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 23, weight: .semibold))
+                        .foregroundStyle(Color.white.opacity(0.72))
 
                     Text(viewModel.localized("main.canvas_empty_description"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary.opacity(0.85))
+                        .font(.callout)
+                        .foregroundStyle(Color.white.opacity(0.48))
                         .multilineTextAlignment(.center)
+                        .frame(maxWidth: 320)
                 }
                 .padding(24)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
@@ -244,16 +304,7 @@ struct MainView: View {
             .resizable()
             .interpolation(.high)
             .aspectRatio(contentMode: .fit)
-            .padding(10)
             .frame(width: width, height: height)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.black.opacity(0.18))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                    )
-            )
             .contentShape(Rectangle())
             .onTapGesture {
                 fullscreenImage = image
@@ -300,38 +351,41 @@ struct MainView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
-                .fill(Color.black.opacity(0.30))
-                .overlay(
-                    RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-        )
     }
 
     private var inspectorPane: some View {
         VStack(spacing: 0) {
             ScrollView(.vertical, showsIndicators: true) {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 0) {
                     if let startupWarning = viewModel.startupWarning {
                         messageBox(startupWarning, color: .orange)
+                            .padding(16)
+                        darkHorizontalDivider
                     }
 
                     promptSection
+                        .padding(16)
+
+                    darkHorizontalDivider
+
                     imageSettingsSection
+                        .padding(16)
 
                     if let successMessage = viewModel.successMessage {
+                        darkHorizontalDivider
                         messageBox(successMessage, color: .green)
+                            .padding(16)
                     }
 
                     if let errorMessage = viewModel.errorMessage {
+                        darkHorizontalDivider
                         messageBox(errorMessage, color: .red)
+                            .padding(16)
                     }
 
                     if let modelResponseText = viewModel.modelResponseText,
                        !modelResponseText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        darkHorizontalDivider
                         VStack(alignment: .leading, spacing: 8) {
                             Text(viewModel.localized("main.model_response"))
                                 .font(.headline)
@@ -348,16 +402,15 @@ struct MainView: View {
                                 .fill(Color.black.opacity(0.24))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
-                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                        .stroke(borderColor, lineWidth: 1)
                                 )
                         )
+                        .padding(16)
                     }
                 }
-                .padding(16)
             }
 
-            Divider()
-                .overlay(Color.white.opacity(0.08))
+            darkHorizontalDivider
 
             VStack(spacing: 8) {
                 if viewModel.isGenerating {
@@ -378,7 +431,6 @@ struct MainView: View {
                 .disabled(!viewModel.canGenerate)
             }
             .padding(16)
-            .background(Color.black.opacity(0.24))
         }
         .background(Color.black.opacity(0.18))
     }
@@ -407,21 +459,21 @@ struct MainView: View {
                 )
                 .frame(minHeight: 300)
                 .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.black.opacity(0.28))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.blue.opacity(0.85), lineWidth: 1.4)
-                )
-                .allowsHitTesting(!viewModel.isGeneratingPromptFromImage)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.black.opacity(0.28))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(borderColor, lineWidth: 1.2)
+            )
+            .allowsHitTesting(!viewModel.isGeneratingPromptFromImage)
 
                 if viewModel.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text(viewModel.localized("main.prompt_drop_hint"))
                         .font(.callout)
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 14)
+                        .padding(.horizontal, PromptTextEditor.textInsetX)
+                        .padding(.vertical, PromptTextEditor.textInsetY)
                         .allowsHitTesting(false)
                 }
 
@@ -449,7 +501,7 @@ struct MainView: View {
                 } label: {
                     Label(
                         viewModel.isEnhancingPrompt ? viewModel.localized("action.enhancing_prompt") : viewModel.localized("action.enhance_prompt"),
-                        systemImage: "slider.horizontal.below.rectangle"
+                        systemImage: "wand.and.stars"
                     )
                 }
                 .buttonStyle(.bordered)
@@ -488,15 +540,6 @@ struct MainView: View {
 
             attachmentStrip
         }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
-                .fill(Color.black.opacity(0.24))
-                .overlay(
-                    RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-        )
         .onChange(of: viewModel.isGeneratingPromptFromImage) { isGenerating in
             if !isGenerating {
                 promptDropTarget = nil
@@ -505,141 +548,280 @@ struct MainView: View {
     }
 
     private var imageSettingsSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(viewModel.localized("main.image_settings"))
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.94))
+                .padding(.bottom, 14)
+
+            darkHorizontalDivider
+                .padding(.bottom, 12)
+
+            parameterDisclosureSection(
+                title: viewModel.localized("main.model"),
+                isExpanded: $isModelSectionExpanded
+            ) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Picker("", selection: Binding(
+                            get: { viewModel.config.model },
+                            set: { viewModel.config.model = $0 }
+                        )) {
+                            ForEach(viewModel.selectableImageModels) { model in
+                                Text(viewModel.modelTitle(for: model)).tag(model.name)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity)
+
+                        Button {
+                            viewModel.refreshAvailableModels(trigger: .manual)
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .frame(width: 34, height: 34)
+                        }
+                        .buttonStyle(.plain)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color.white.opacity(0.08))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .stroke(borderColor, lineWidth: 1)
+                                )
+                        )
+                        .disabled(viewModel.isLoadingModels)
+                        .help(viewModel.localized("main.model_refresh"))
+                    }
+
+                    if let modelCatalogErrorMessage = viewModel.modelCatalogErrorMessage,
+                       !modelCatalogErrorMessage.isEmpty {
+                        Text(modelCatalogErrorMessage)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    } else if viewModel.isLoadingModels {
+                        Text(viewModel.localized("main.model_loading"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            darkHorizontalDivider
+                .padding(.vertical, 12)
+
+            parameterDisclosureSection(
+                title: viewModel.localized("main.resolution"),
+                isExpanded: $isResolutionSectionExpanded
+            ) {
+                segmentedSelectorContainer {
+                    segmentedButton(
+                        title: "1K",
+                        isSelected: effectiveResolutionSelection == .k1
+                    ) {
+                        viewModel.resolutionSelection = .k1
+                    }
+
+                    segmentedDivider
+
+                    segmentedButton(
+                        title: "2K",
+                        isSelected: effectiveResolutionSelection == .k2
+                    ) {
+                        viewModel.resolutionSelection = .k2
+                    }
+
+                    segmentedDivider
+
+                    segmentedButton(
+                        title: "4K",
+                        isSelected: effectiveResolutionSelection == .k4
+                    ) {
+                        viewModel.resolutionSelection = .k4
+                    }
+                }
+            }
+
+            darkHorizontalDivider
+                .padding(.vertical, 12)
+
+            parameterDisclosureSection(
+                title: viewModel.localized("main.aspect_ratio"),
+                isExpanded: $isAspectRatioSectionExpanded
+            ) {
+                segmentedSelectorContainer {
+                    segmentedButton(
+                        title: viewModel.localized("main.aspect_ratio_auto_short"),
+                        isSelected: viewModel.aspectRatioSelection == .auto
+                    ) {
+                        viewModel.aspectRatioSelection = .auto
+                    }
+
+                    segmentedDivider
+
+                    segmentedButton(
+                        title: ImageAspectRatio.square.rawValue,
+                        isSelected: viewModel.aspectRatioSelection == .square
+                    ) {
+                        viewModel.aspectRatioSelection = .square
+                    }
+
+                    segmentedDivider
+
+                    segmentedButton(
+                        title: ImageAspectRatio.landscape16x9.rawValue,
+                        isSelected: viewModel.aspectRatioSelection == .landscape16x9
+                    ) {
+                        viewModel.aspectRatioSelection = .landscape16x9
+                    }
+
+                    segmentedDivider
+
+                    Menu {
+                        ForEach(hiddenAspectRatioOptions, id: \.id) { option in
+                            Button(optionTitle(for: option)) {
+                                viewModel.aspectRatioSelection = option
+                            }
+                        }
+                    } label: {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color.clear)
+
+                            HStack(spacing: 4) {
+                                Text(hiddenAspectRatioMenuTitle)
+                                    .lineLimit(1)
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 36)
+                        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, minHeight: 36)
+                    .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+            }
+
+            darkHorizontalDivider
+                .padding(.vertical, 12)
+
+            parameterDisclosureSection(
+                title: viewModel.localized("main.image_count"),
+                isExpanded: $isImageCountSectionExpanded
+            ) {
+                HStack(spacing: 12) {
+                    Slider(
+                        value: Binding(
+                            get: { viewModel.imageCountSliderValue },
+                            set: { viewModel.imageCountSliderValue = $0 }
+                        ),
+                        in: 1...4,
+                        step: 1
+                    )
+                    .tint(.blue)
+
+                    Text(viewModel.imageCountValueLabel)
+                        .font(.callout.weight(.semibold))
+                        .frame(width: 52, height: 34)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color.white.opacity(0.08))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .stroke(borderColor, lineWidth: 1)
+                                )
+                        )
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func parameterDisclosureSection<Content: View>(
+        title: String,
+        isExpanded: Binding<Bool>,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    viewModel.isImageSettingsExpanded.toggle()
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isExpanded.wrappedValue.toggle()
                 }
             } label: {
-                HStack {
-                    Text(viewModel.localized("main.image_settings"))
-                        .font(.title2.weight(.semibold))
-                    Spacer()
-                    Image(systemName: viewModel.isImageSettingsExpanded ? "chevron.up" : "chevron.down")
-                        .font(.footnote.weight(.semibold))
+                HStack(spacing: 10) {
+                    Image(systemName: isExpanded.wrappedValue ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
+                        .frame(width: 12)
+
+                    Text(title)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.94))
+
+                    Spacer()
                 }
-                .foregroundStyle(.white.opacity(0.94))
-                .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
-            if viewModel.isImageSettingsExpanded {
-                VStack(alignment: .leading, spacing: 14) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(viewModel.localized("main.model"))
-                            .font(.title3.weight(.medium))
-
-                        HStack(spacing: 8) {
-                            Picker("", selection: Binding(
-                                get: { viewModel.config.model },
-                                set: { viewModel.config.model = $0 }
-                            )) {
-                                ForEach(viewModel.selectableImageModels) { model in
-                                    Text(viewModel.modelTitle(for: model)).tag(model.name)
-                                }
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
-                            .frame(maxWidth: .infinity)
-
-                            Button {
-                                viewModel.refreshAvailableModels(trigger: .manual)
-                            } label: {
-                                Image(systemName: "arrow.clockwise")
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(viewModel.isLoadingModels)
-                            .help(viewModel.localized("main.model_refresh"))
-                        }
-
-                        if let modelCatalogErrorMessage = viewModel.modelCatalogErrorMessage,
-                           !modelCatalogErrorMessage.isEmpty {
-                            Text(modelCatalogErrorMessage)
-                                .font(.caption)
-                                .foregroundStyle(.red)
-                        } else if viewModel.isLoadingModels {
-                            Text(viewModel.localized("main.model_loading"))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    Divider()
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text(viewModel.localized("main.resolution"))
-                                .font(.title3.weight(.medium))
-                            Spacer()
-                            Text(viewModel.resolutionValueLabel)
-                                .font(.title3.weight(.medium))
-                                .foregroundStyle(.white.opacity(0.90))
-                        }
-
-                        Slider(
-                            value: Binding(
-                                get: { viewModel.resolutionSliderValue },
-                                set: { viewModel.resolutionSliderValue = $0 }
-                            ),
-                            in: 0...2,
-                            step: 1
-                        )
-                        .tint(.blue)
-                    }
-
-                    Divider()
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text(viewModel.localized("main.aspect_ratio"))
-                                .font(.title3.weight(.medium))
-                            Spacer()
-                            Text(aspectRatioValueText)
-                                .font(.title3.weight(.medium))
-                                .foregroundStyle(.white.opacity(0.90))
-                        }
-
-                        Slider(value: aspectRatioSliderBinding, in: 0...Double(aspectRatioOptions.count - 1), step: 1)
-                            .tint(.blue)
-                    }
-
-                    Divider()
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text(viewModel.localized("main.image_count"))
-                                .font(.title3.weight(.medium))
-                            Spacer()
-                            Text(viewModel.imageCountValueLabel)
-                                .font(.title3.weight(.medium))
-                                .foregroundStyle(.white.opacity(0.90))
-                        }
-
-                        Slider(
-                            value: Binding(
-                                get: { viewModel.imageCountSliderValue },
-                                set: { viewModel.imageCountSliderValue = $0 }
-                            ),
-                            in: 1...4,
-                            step: 1
-                        )
-                        .tint(.blue)
-                    }
-                }
-                .transition(.opacity.combined(with: .move(edge: .top)))
+            if isExpanded.wrappedValue {
+                content()
+                    .padding(.leading, 22)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(12)
+    }
+
+    @ViewBuilder
+    private func segmentedSelectorContainer<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack(spacing: 0) {
+            content()
+        }
+        .padding(3)
         .background(
-            RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
-                .fill(Color.black.opacity(0.24))
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.white.opacity(0.08))
                 .overlay(
-                    RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(borderColor, lineWidth: 1)
                 )
         )
+    }
+
+    private var segmentedDivider: some View {
+        Rectangle()
+            .fill(borderColor.opacity(0.8))
+            .frame(width: 1, height: 22)
+            .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private func segmentedButton(
+        title: String,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? Color.white.opacity(0.16) : Color.clear)
+
+                Text(title)
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(isSelected ? Color.white.opacity(0.95) : Color.white.opacity(0.72))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, minHeight: 36)
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, minHeight: 36)
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     @ViewBuilder
@@ -704,14 +886,61 @@ struct MainView: View {
         .help(viewModel.localized("attachments.insert_mention"))
     }
 
-    private func computedInspectorWidth(totalWidth: CGFloat) -> CGFloat {
-        let preferred = totalWidth * 0.34
-        let clamped = min(max(preferred, inspectorMinWidth), inspectorMaxWidth)
-        return min(clamped, totalWidth * 0.48)
+    private func resolvedInspectorWidth(totalWidth: CGFloat) -> CGFloat {
+        let maxWidth = maximumInspectorWidth(totalWidth: totalWidth)
+        let preferredWidth = storedInspectorWidth > 0 ? storedInspectorWidth : inspectorPreferredWidth
+        return clampedInspectorWidth(preferredWidth, totalWidth: totalWidth, maximumWidth: maxWidth)
+    }
+
+    private func maximumInspectorWidth(totalWidth: CGFloat) -> CGFloat {
+        min(max(totalWidth * 0.52, inspectorMinWidth + 40), 760)
+    }
+
+    private func clampedInspectorWidth(
+        _ width: CGFloat,
+        totalWidth: CGFloat,
+        maximumWidth: CGFloat? = nil
+    ) -> CGFloat {
+        let maxWidth = maximumWidth ?? maximumInspectorWidth(totalWidth: totalWidth)
+        return min(max(width, inspectorMinWidth), maxWidth)
+    }
+
+    private var effectiveResolutionSelection: ResolutionSelection {
+        switch viewModel.resolutionSelection {
+        case .auto, .k1:
+            return .k1
+        case .k2:
+            return .k2
+        case .k4:
+            return .k4
+        }
     }
 
     private var aspectRatioOptions: [AspectRatioSelection] {
         AspectRatioSelection.allCases
+    }
+
+    private var hiddenAspectRatioOptions: [AspectRatioSelection] {
+        aspectRatioOptions.filter { option in
+            option != .auto && option != .square && option != .landscape16x9
+        }
+    }
+
+    private var hiddenAspectRatioMenuTitle: String {
+        switch viewModel.aspectRatioSelection {
+        case .auto, .square, .landscape16x9:
+            return "⋯"
+        default:
+            return optionTitle(for: viewModel.aspectRatioSelection)
+        }
+    }
+
+    private func optionTitle(for option: AspectRatioSelection) -> String {
+        if option == .auto {
+            return viewModel.localized("main.aspect_ratio_auto_short")
+        }
+
+        return option.manualAspectRatio?.rawValue ?? ImageAspectRatio.square.rawValue
     }
 
     private var aspectRatioSliderBinding: Binding<Double> {
@@ -823,7 +1052,7 @@ struct MainView: View {
                 .fill(viewModel.canSavePromptPreset ? Color.blue.opacity(0.90) : Color.white.opacity(0.12))
                 .overlay(
                     Circle()
-                        .stroke(Color.white.opacity(0.22), lineWidth: 1)
+                        .stroke(borderColor, lineWidth: 1)
                 )
         )
         .shadow(color: Color.black.opacity(0.22), radius: 6, x: 0, y: 3)

@@ -12,7 +12,7 @@ struct HistoryView: View {
     @State private var loadingThumbnailPaths: Set<String> = []
 
     private let thumbnailLoader = HistoryThumbnailLoader.shared
-    private let thumbnailSize = CGSize(width: 44, height: 44)
+    private let thumbnailSize = CGSize(width: 88, height: 88)
 
     private static let formatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -263,14 +263,14 @@ struct HistoryView: View {
                     Image(nsImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 44, height: 44)
+                        .frame(width: thumbnailSize.width, height: thumbnailSize.height)
                         .background(Color.secondary.opacity(0.12))
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .accessibilityLabel(viewModel.localized("history.thumbnail_alt"))
                 } else {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(Color.secondary.opacity(0.12))
-                        .frame(width: 44, height: 44)
+                        .frame(width: thumbnailSize.width, height: thumbnailSize.height)
                         .overlay(Image(systemName: "photo"))
                         .accessibilityLabel(viewModel.localized("history.thumbnail_alt"))
                 }
@@ -283,7 +283,7 @@ struct HistoryView: View {
         } else {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color.secondary.opacity(0.12))
-                .frame(width: 44, height: 44)
+                .frame(width: thumbnailSize.width, height: thumbnailSize.height)
                 .overlay(Image(systemName: "photo"))
                 .accessibilityLabel(viewModel.localized("history.thumbnail_alt"))
         }

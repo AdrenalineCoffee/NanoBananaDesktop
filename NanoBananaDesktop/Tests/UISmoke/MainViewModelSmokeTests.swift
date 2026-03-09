@@ -879,6 +879,33 @@ func duplicatePresetTriggersOverwriteFlowAndCanReplace() async throws {
 }
 
 @Test
+func updatePresetChangesNameAndPromptText() async throws {
+    let viewModel = try await makeIsolatedViewModel()
+
+    let presetID = await MainActor.run { () -> UUID? in
+        viewModel.prompt = "Original preset body"
+        viewModel.presetNameDraft = "Reusable"
+        viewModel.commitPresetFromDraft()
+        return viewModel.sortedPromptPresets.first?.id
+    }
+    let updatedPresetID = try #require(presetID)
+
+    await MainActor.run {
+        viewModel.updatePreset(
+            id: updatedPresetID,
+            newName: "Reusable Updated",
+            newPrompt: "Updated preset body"
+        )
+    }
+
+    let presets = await MainActor.run { viewModel.sortedPromptPresets }
+    #expect(presets.count == 1)
+    #expect(presets.first?.id == updatedPresetID)
+    #expect(presets.first?.name == "Reusable Updated")
+    #expect(presets.first?.prompt == "Updated preset body")
+}
+
+@Test
 func generatePromptFromImageHappyPathReplacesPromptAndTogglesProgressState() async throws {
     let apiKey = "key-smoke-prompt-from-image"
     let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])

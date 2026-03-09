@@ -478,10 +478,15 @@ final class MainViewModel: ObservableObject {
         }
     }
 
-    func renamePreset(id: UUID, newName: String) {
+    func updatePreset(id: UUID, newName: String, newPrompt: String) {
         let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedPrompt = newPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else {
             errorMessage = localized("error.preset_name_empty")
+            return
+        }
+        guard !trimmedPrompt.isEmpty else {
+            setError(.emptyPrompt)
             return
         }
 
@@ -495,12 +500,20 @@ final class MainViewModel: ObservableObject {
         }
 
         config.promptPresets[index].name = trimmedName
+        config.promptPresets[index].prompt = trimmedPrompt
         config.promptPresets[index].updatedAt = Date()
         normalizePresetOrdering()
 
         if persistConfigChanges() {
-            successMessage = localized("status.preset_renamed", trimmedName)
+            successMessage = localized("status.preset_updated", trimmedName)
         }
+    }
+
+    func renamePreset(id: UUID, newName: String) {
+        guard let preset = config.promptPresets.first(where: { $0.id == id }) else {
+            return
+        }
+        updatePreset(id: id, newName: newName, newPrompt: preset.prompt)
     }
 
     func deletePreset(id: UUID) {

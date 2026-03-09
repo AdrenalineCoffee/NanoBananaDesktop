@@ -4,13 +4,15 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var viewModel: MainViewModel
     let isVisible: Bool
-    @State private var presetForRename: PromptPreset?
-    @State private var presetRenameDraft: String = ""
-    @State private var isRenamePresetSheetPresented: Bool = false
+    @State private var presetForEdit: PromptPreset?
+    @State private var presetEditNameDraft: String = ""
+    @State private var presetEditPromptDraft: String = ""
+    @State private var isEditPresetSheetPresented: Bool = false
     @State private var presetForDelete: PromptPreset?
     @State private var isDeletePresetConfirmationPresented: Bool = false
     @State private var isPromptEnhancementInstructionExpanded: Bool = false
     @State private var isPromptFromImageInstructionExpanded: Bool = false
+    @State private var isPresetsExpanded: Bool = false
 
     private var noProxyHostsTextBinding: Binding<String> {
         Binding(
@@ -158,58 +160,7 @@ struct SettingsView: View {
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text(viewModel.localized("settings.group.presets"))
-                            .font(.headline)
-
-                        if viewModel.sortedPromptPresets.isEmpty {
-                            Text(viewModel.localized("settings.presets_empty"))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            ForEach(viewModel.sortedPromptPresets) { preset in
-                                HStack(alignment: .top, spacing: 10) {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(preset.name)
-                                            .font(.callout.weight(.semibold))
-                                        Text(viewModel.presetMetadataText(for: preset))
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(2)
-                                        Text(preset.prompt)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(2)
-                                            .textSelection(.enabled)
-                                    }
-
-                                    Spacer(minLength: 8)
-
-                                    Button {
-                                        presetForRename = preset
-                                        presetRenameDraft = preset.name
-                                        isRenamePresetSheetPresented = true
-                                    } label: {
-                                        Image(systemName: "pencil")
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .help(viewModel.localized("settings.preset_rename"))
-
-                                    Button(role: .destructive) {
-                                        presetForDelete = preset
-                                        isDeletePresetConfirmationPresented = true
-                                    } label: {
-                                        Image(systemName: "trash")
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .help(viewModel.localized("settings.preset_delete"))
-                                }
-                                .padding(.vertical, 4)
-
-                                if preset.id != viewModel.sortedPromptPresets.last?.id {
-                                    Divider()
-                                }
-                            }
-                        }
+                        collapsiblePresetsSection
                     }
                     .padding(12)
                 }
@@ -376,8 +327,8 @@ struct SettingsView: View {
                 viewModel.refreshAvailableModels(trigger: .onAppear)
             }
         }
-        .sheet(isPresented: $isRenamePresetSheetPresented) {
-            renamePresetSheet
+        .sheet(isPresented: $isEditPresetSheetPresented) {
+            editPresetSheet
         }
         .confirmationDialog(
             viewModel.localized("settings.preset_delete_confirm_title"),
@@ -483,6 +434,89 @@ struct SettingsView: View {
         }
     }
 
+    @ViewBuilder
+    private var collapsiblePresetsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isPresetsExpanded.toggle()
+                }
+            } label: {
+                HStack {
+                    Text(viewModel.localized("settings.group.presets"))
+                        .font(.callout)
+                        .foregroundStyle(.primary)
+
+                    Spacer()
+
+                    Image(systemName: isPresetsExpanded ? "chevron.up" : "chevron.down")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isPresetsExpanded {
+                if viewModel.sortedPromptPresets.isEmpty {
+                    Text(viewModel.localized("settings.presets_empty"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                } else {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(viewModel.sortedPromptPresets) { preset in
+                            HStack(alignment: .top, spacing: 10) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(preset.name)
+                                        .font(.callout.weight(.semibold))
+                                    Text(viewModel.presetMetadataText(for: preset))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                    Text(preset.prompt)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                        .textSelection(.enabled)
+                                }
+
+                                Spacer(minLength: 8)
+
+                                Button {
+                                    presetForEdit = preset
+                                    presetEditNameDraft = preset.name
+                                    presetEditPromptDraft = preset.prompt
+                                    isEditPresetSheetPresented = true
+                                } label: {
+                                    Image(systemName: "pencil")
+                                }
+                                .buttonStyle(.bordered)
+                                .help(viewModel.localized("settings.preset_edit"))
+
+                                Button(role: .destructive) {
+                                    presetForDelete = preset
+                                    isDeletePresetConfirmationPresented = true
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .buttonStyle(.bordered)
+                                .help(viewModel.localized("settings.preset_delete"))
+                            }
+                            .padding(.vertical, 4)
+
+                            if preset.id != viewModel.sortedPromptPresets.last?.id {
+                                Divider()
+                            }
+                        }
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+        }
+    }
+
     private var appVersionDisplay: String {
         let rawVersion = (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -504,38 +538,54 @@ struct SettingsView: View {
         }
     }
 
-    private var renamePresetSheet: some View {
+    private var editPresetSheet: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(viewModel.localized("settings.preset_rename_title"))
+            Text(viewModel.localized("settings.preset_edit_title"))
                 .font(.title3.weight(.semibold))
 
             TextField(
                 viewModel.localized("settings.preset_name_placeholder"),
-                text: $presetRenameDraft
+                text: $presetEditNameDraft
             )
             .textFieldStyle(.roundedBorder)
+
+            Text(viewModel.localized("settings.preset_prompt"))
+                .font(.callout.weight(.medium))
+
+            TextEditor(text: $presetEditPromptDraft)
+                .font(.callout)
+                .frame(minHeight: 180)
+                .padding(10)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+                )
 
             HStack(spacing: 8) {
                 Spacer()
                 Button(viewModel.localized("action.cancel")) {
-                    isRenamePresetSheetPresented = false
-                    presetForRename = nil
+                    isEditPresetSheetPresented = false
+                    presetForEdit = nil
                 }
                 .keyboardShortcut(.cancelAction)
 
-                Button(viewModel.localized("settings.preset_rename")) {
-                    guard let presetForRename else {
-                        isRenamePresetSheetPresented = false
+                Button(viewModel.localized("settings.preset_edit")) {
+                    guard let presetForEdit else {
+                        isEditPresetSheetPresented = false
                         return
                     }
-                    viewModel.renamePreset(id: presetForRename.id, newName: presetRenameDraft)
-                    isRenamePresetSheetPresented = false
-                    self.presetForRename = nil
+                    viewModel.updatePreset(
+                        id: presetForEdit.id,
+                        newName: presetEditNameDraft,
+                        newPrompt: presetEditPromptDraft
+                    )
+                    isEditPresetSheetPresented = false
+                    self.presetForEdit = nil
                 }
                 .keyboardShortcut(.defaultAction)
             }
         }
         .padding(18)
-        .frame(width: 420)
+        .frame(width: 520)
     }
 }

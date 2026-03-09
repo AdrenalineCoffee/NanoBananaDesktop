@@ -7,6 +7,9 @@ enum PromptDropTarget: Equatable {
 }
 
 struct PromptTextEditor: NSViewRepresentable {
+    static let textInsetX: CGFloat = 12
+    static let textInsetY: CGFloat = 12
+
     @Binding var text: String
     @Binding var mentionToInsert: String?
     var onFilesDropped: ([URL], PromptDropTarget) -> Void
@@ -23,6 +26,7 @@ struct PromptTextEditor: NSViewRepresentable {
 
         let textContainer = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
         textContainer.widthTracksTextView = true
+        textContainer.lineFragmentPadding = 0
         layoutManager.addTextContainer(textContainer)
 
         let textView = DropAwareTextView(
@@ -38,7 +42,7 @@ struct PromptTextEditor: NSViewRepresentable {
         textView.drawsBackground = false
         textView.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
         textView.string = text
-        textView.textContainerInset = NSSize(width: 6, height: 8)
+        textView.textContainerInset = NSSize(width: Self.textInsetX, height: Self.textInsetY)
         textView.minSize = NSSize(width: 0, height: 0)
         textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         textView.isVerticallyResizable = true

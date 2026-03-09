@@ -34,8 +34,14 @@ enum RootSection: String, CaseIterable, Identifiable, Hashable {
 struct RootView: View {
     @ObservedObject var viewModel: MainViewModel
     @State private var selection: RootSection = .create
-    private let sidebarColumnWidth: CGFloat = 246
+    @SceneStorage("root.sidebarCollapsed") private var isSidebarCollapsed: Bool = false
+    private let sidebarExpandedWidth: CGFloat = 246
     private let sidebarMenuTopInset: CGFloat = 58
+    private let topBarHeight: CGFloat = 52
+    private let titlebarButtonSize: CGFloat = 30
+    private let collapsedButtonLeadingInset: CGFloat = 104
+    private var expandedButtonLeadingInset: CGFloat { sidebarExpandedWidth - titlebarButtonSize - 8 }
+    private var titlebarButtonTopInset: CGFloat { (topBarHeight - titlebarButtonSize) / 2 }
 
     var body: some View {
         ZStack {
@@ -44,12 +50,21 @@ struct RootView: View {
 
             HStack(spacing: 0) {
                 sidebarMenu
-                    .frame(width: sidebarColumnWidth)
+                    .frame(width: sidebarExpandedWidth)
+                    .frame(width: isSidebarCollapsed ? 0 : sidebarExpandedWidth, alignment: .leading)
+                    .clipped()
 
                 detailContainer
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .ignoresSafeArea(.container, edges: .top)
+            .animation(.easeInOut(duration: 0.22), value: isSidebarCollapsed)
+
+            sidebarToggleButton
+                .padding(.leading, isSidebarCollapsed ? collapsedButtonLeadingInset : expandedButtonLeadingInset)
+                .padding(.top, titlebarButtonTopInset)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .ignoresSafeArea(.container, edges: .top)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(WindowChromeConfigurator())
@@ -113,16 +128,21 @@ struct RootView: View {
                 .frame(width: 1)
                 .frame(maxWidth: .infinity, alignment: .trailing)
 
-            VStack(alignment: .leading, spacing: 7) {
+            VStack(alignment: .leading, spacing: 0) {
                 ForEach(RootSection.allCases) { section in
                     sidebarRow(for: section)
                 }
             }
             .padding(.horizontal, 14)
             .padding(.top, sidebarMenuTopInset)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .frame(width: sidebarExpandedWidth, alignment: .topLeading)
+            .frame(maxHeight: .infinity, alignment: .topLeading)
+            .opacity(isSidebarCollapsed ? 0 : 1)
+            .offset(x: isSidebarCollapsed ? -18 : 0)
+            .allowsHitTesting(!isSidebarCollapsed)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(width: sidebarExpandedWidth, alignment: .topLeading)
+        .frame(maxHeight: .infinity, alignment: .topLeading)
     }
 
     @ViewBuilder
@@ -142,7 +162,7 @@ struct RootView: View {
 
             Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
         .padding(.horizontal, 12)
         .background(
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -178,6 +198,31 @@ struct RootView: View {
                 .opacity(selection == .settings ? 1 : 0)
                 .allowsHitTesting(selection == .settings)
         }
+    }
+
+    private var sidebarToggleButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.22)) {
+                isSidebarCollapsed.toggle()
+            }
+        } label: {
+            Image(systemName: "sidebar.left")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.86))
+                .frame(width: titlebarButtonSize, height: titlebarButtonSize)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.white.opacity(0.06))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                        )
+                )
+                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .help(viewModel.localized("main.inspector_resize_help"))
     }
 }
 

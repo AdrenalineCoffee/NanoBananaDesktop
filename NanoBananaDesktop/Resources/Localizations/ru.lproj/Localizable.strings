@@ -17,7 +17,7 @@
 "main.preset_overwrite_title" = "Пресет уже существует";
 "main.preset_overwrite_message" = "Пресет «%@» уже есть. Заменить его текущим промптом?";
 "main.preset_default_name" = "Пресет %d";
-"main.image_settings" = "Параметры изображения";
+"main.image_settings" = "Параметры";
 "main.model" = "Нейросеть";
 "main.model_refresh" = "Обновить список моделей";
 "main.model_loading" = "Загружаем модели для текущего API ключа...";
@@ -57,9 +57,12 @@
 "settings.presets_empty" = "Сохранённых пресетов пока нет.";
 "settings.preset_meta_format" = "%@ • %@ • %@ • %d";
 "settings.preset_rename" = "Переименовать";
+"settings.preset_edit" = "Редактировать";
 "settings.preset_delete" = "Удалить";
 "settings.preset_rename_title" = "Переименовать пресет";
+"settings.preset_edit_title" = "Редактировать пресет";
 "settings.preset_name_placeholder" = "Название пресета";
+"settings.preset_prompt" = "Текст промпта";
 "settings.preset_delete_confirm_title" = "Удалить пресет?";
 "settings.preset_delete_confirm_message" = "Пресет «%@» будет удалён без возможности восстановления.";
 "settings.text_models_status" = "Статус text-моделей";
@@ -146,6 +149,7 @@
 "status.preset_saved" = "Пресет «%@» сохранён.";
 "status.preset_applied" = "Пресет «%@» применён.";
 "status.preset_renamed" = "Пресет переименован: %@.";
+"status.preset_updated" = "Пресет обновлён: %@.";
 "status.preset_deleted" = "Пресет удалён: %@.";
 
 "warning.config_recovered" = "Файл конфигурации был поврежден и восстановлен по умолчанию.";
@@ -184,3 +188,5 @@
 "error.no_text_in_response" = "В ответе API нет текста с улучшенным промптом.";
 "error.decoding" = "Не удалось разобрать ответ API.";
 "error.io" = "Ошибка файловой системы";
+
+"main.inspector_resize_help" = "Изменить ширину панели параметров";

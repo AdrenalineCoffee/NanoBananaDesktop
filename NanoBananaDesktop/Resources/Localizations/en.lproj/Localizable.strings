@@ -17,7 +17,7 @@
 "main.preset_overwrite_title" = "Preset already exists";
 "main.preset_overwrite_message" = "Preset \"%@\" already exists. Replace it with the current prompt?";
 "main.preset_default_name" = "Preset %d";
-"main.image_settings" = "Image settings";
+"main.image_settings" = "Parameters";
 "main.model" = "Model";
 "main.model_refresh" = "Refresh model list";
 "main.model_loading" = "Loading models for this API key...";
@@ -57,9 +57,12 @@
 "settings.presets_empty" = "No saved presets yet.";
 "settings.preset_meta_format" = "%@ • %@ • %@ • %d";
 "settings.preset_rename" = "Rename";
+"settings.preset_edit" = "Edit";
 "settings.preset_delete" = "Delete";
 "settings.preset_rename_title" = "Rename preset";
+"settings.preset_edit_title" = "Edit preset";
 "settings.preset_name_placeholder" = "Preset name";
+"settings.preset_prompt" = "Prompt text";
 "settings.preset_delete_confirm_title" = "Delete preset?";
 "settings.preset_delete_confirm_message" = "Preset \"%@\" will be removed permanently.";
 "settings.text_models_status" = "Text model status";
@@ -146,6 +149,7 @@
 "status.preset_saved" = "Preset \"%@\" saved.";
 "status.preset_applied" = "Preset \"%@\" applied.";
 "status.preset_renamed" = "Preset renamed: %@.";
+"status.preset_updated" = "Preset updated: %@.";
 "status.preset_deleted" = "Preset deleted: %@.";
 
 "warning.config_recovered" = "Config was corrupted and restored to defaults.";
@@ -184,3 +188,5 @@
 "error.no_text_in_response" = "No improved prompt text was found in the API response.";
 "error.decoding" = "Failed to parse API response.";
 "error.io" = "File system error";
+
+"main.inspector_resize_help" = "Resize the inspector";
