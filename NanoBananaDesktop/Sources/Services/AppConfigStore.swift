@@ -60,9 +60,17 @@ final class AppConfigStore {
         let defaults = AppConfig.defaultValue(currentWorkingDirectory: currentWorkingDirectory, fileManager: fileManager)
 
         let trimmedKey = config.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedOpenAIKey = config.openAIAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedOpenAICompatibleKey = config.openAICompatibleAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedKieKey = config.kieAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedOpenAICompatibleBaseURL = normalizedBaseURLString(
+            config.openAICompatibleBaseURL,
+            fallback: AppConfig.defaultOpenAICompatibleBaseURL
+        )
         let trimmedImageModel = config.model.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedPromptModel = config.promptEnhancementModel.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedPromptFromImageInstruction = config.promptFromImageInstruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedConceptPromptAdditions = config.conceptPromptAdditions.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedEnhancementInstruction = config.promptEnhancementInstruction.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedPromptPresets = normalizedPromptPresets(config.promptPresets)
 
@@ -93,6 +101,14 @@ final class AppConfigStore {
             normalizedPromptFromImageInstruction = AppConfig.defaultPromptFromImageInstruction
         } else {
             normalizedPromptFromImageInstruction = trimmedPromptFromImageInstruction
+        }
+
+        let normalizedConceptPromptAdditions: String
+        if trimmedConceptPromptAdditions.isEmpty
+            || trimmedConceptPromptAdditions == AppConfig.legacyDefaultConceptPromptAdditions {
+            normalizedConceptPromptAdditions = AppConfig.defaultConceptPromptAdditions
+        } else {
+            normalizedConceptPromptAdditions = trimmedConceptPromptAdditions
         }
 
         let migratedDefaultPath = AppConfig.defaultOutputDirectory(
@@ -133,9 +149,19 @@ final class AppConfigStore {
 
         return AppConfig(
             apiKey: trimmedKey,
+            openAIAPIKey: trimmedOpenAIKey,
+            openAICompatibleAPIKey: trimmedOpenAICompatibleKey,
+            openAICompatibleBaseURL: normalizedOpenAICompatibleBaseURL,
+            kieAPIKey: trimmedKieKey,
+            geminiEnabled: config.geminiEnabled,
+            openAIEnabled: config.openAIEnabled,
+            openAICompatibleEnabled: config.openAICompatibleEnabled,
+            kieEnabled: config.kieEnabled,
             model: normalizedImageModel,
             promptEnhancementModel: normalizedPromptModel,
             promptFromImageInstruction: normalizedPromptFromImageInstruction,
+            conceptPromptAdditions: normalizedConceptPromptAdditions,
+            generationCompletionNotificationsEnabled: config.generationCompletionNotificationsEnabled,
             promptEnhancementInstruction: normalizedEnhancementInstruction,
             promptPresets: normalizedPromptPresets,
             language: config.language,
@@ -159,12 +185,29 @@ final class AppConfigStore {
             return fallback
         }
 
-        if trimmed.lowercased().hasPrefix("models/") {
-            let stripped = String(trimmed.dropFirst("models/".count))
-            return stripped.isEmpty ? fallback : stripped
+        let provider = ModelProvider.inferImageProvider(from: trimmed)
+        let apiModelName = ModelProvider.apiModelName(from: trimmed)
+        if apiModelName.lowercased().hasPrefix("models/") {
+            let stripped = String(apiModelName.dropFirst("models/".count))
+            return stripped.isEmpty
+                ? fallback
+                : ModelProvider.encodedModelName(provider: provider, modelName: stripped)
         }
 
         return trimmed
+    }
+
+    private func normalizedBaseURLString(_ candidate: String, fallback: String) -> String {
+        var trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            trimmed = fallback
+        }
+
+        while trimmed.hasSuffix("/") {
+            trimmed.removeLast()
+        }
+
+        return trimmed.isEmpty ? fallback : trimmed
     }
 
     private func normalizedPromptPresets(_ presets: [PromptPreset]) -> [PromptPreset] {

@@ -3,6 +3,11 @@ import Foundation
 enum AppError: Error, Equatable {
     case emptyPrompt
     case missingAPIKey
+    case missingOpenAIAPIKey
+    case missingOpenAICompatibleAPIKey
+    case missingKieAPIKey
+    case providerDisabled(String)
+    case invalidOpenAICompatibleBaseURL(String)
     case promptFromImageNoValidFile
     case promptFromImageModelNotSupported(String)
     case missingInputImage
@@ -27,6 +32,7 @@ enum AppError: Error, Equatable {
     case unauthorized
     case permissionDenied
     case quotaExceeded
+    case billingCreditsDepleted(String)
     case rateLimited
     case serverError(Int)
     case invalidResponse
@@ -34,6 +40,15 @@ enum AppError: Error, Equatable {
     case noTextInResponse
     case decodingError
     case ioError(String)
+    case kieUploadFailed(String)
+    case kieTaskFailed(String)
+    case conceptNoEditableRegion
+    case conceptNoLockedBase
+    case conceptNoProjectLoaded
+    case conceptInvalidLayer
+    case conceptImportFailed(String)
+    case conceptBackgroundRemovalUnavailable
+    case conceptBackgroundRemovalFailed(String)
 
     var localizationKey: String {
         switch self {
@@ -41,6 +56,16 @@ enum AppError: Error, Equatable {
             return "error.empty_prompt"
         case .missingAPIKey:
             return "error.missing_api_key"
+        case .missingOpenAIAPIKey:
+            return "error.missing_openai_api_key"
+        case .missingOpenAICompatibleAPIKey:
+            return "error.missing_openai_compatible_api_key"
+        case .missingKieAPIKey:
+            return "error.missing_kie_api_key"
+        case .providerDisabled:
+            return "error.provider_disabled"
+        case .invalidOpenAICompatibleBaseURL:
+            return "error.invalid_openai_compatible_base_url"
         case .promptFromImageNoValidFile:
             return "error.prompt_from_image_no_valid_file"
         case .promptFromImageModelNotSupported:
@@ -85,6 +110,8 @@ enum AppError: Error, Equatable {
             return "error.permission_denied"
         case .quotaExceeded:
             return "error.quota"
+        case .billingCreditsDepleted:
+            return "error.billing_credits_depleted"
         case .rateLimited:
             return "error.rate_limited"
         case .serverError:
@@ -99,6 +126,24 @@ enum AppError: Error, Equatable {
             return "error.decoding"
         case .ioError:
             return "error.io"
+        case .kieUploadFailed:
+            return "error.kie_upload_failed"
+        case .kieTaskFailed:
+            return "error.kie_task_failed"
+        case .conceptNoEditableRegion:
+            return "error.concept_no_editable_region"
+        case .conceptNoLockedBase:
+            return "error.concept_no_locked_base"
+        case .conceptNoProjectLoaded:
+            return "error.concept_no_project_loaded"
+        case .conceptInvalidLayer:
+            return "error.concept_invalid_layer"
+        case .conceptImportFailed:
+            return "error.concept_import_failed"
+        case .conceptBackgroundRemovalUnavailable:
+            return "error.concept_background_removal_unavailable"
+        case .conceptBackgroundRemovalFailed:
+            return "error.concept_background_removal_failed"
         }
     }
 
@@ -112,7 +157,14 @@ enum AppError: Error, Equatable {
              .proxyAuthFailed(let message),
              .directFallbackDisabled(let message),
              .proxyInvalidSettings(let message),
-             .timeoutWithDetails(let message):
+             .providerDisabled(let message),
+             .invalidOpenAICompatibleBaseURL(let message),
+             .timeoutWithDetails(let message),
+             .billingCreditsDepleted(let message),
+             .kieUploadFailed(let message),
+             .kieTaskFailed(let message),
+             .conceptImportFailed(let message),
+             .conceptBackgroundRemovalFailed(let message):
             return message
         case .promptFromImageModelNotSupported:
             return ""
@@ -123,6 +175,51 @@ enum AppError: Error, Equatable {
         default:
             return ""
         }
+    }
+
+    static func billingCreditsDepletedError(message: String?) -> AppError? {
+        let rawMessage = (message ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = rawMessage.lowercased()
+        guard !normalized.isEmpty else {
+            return nil
+        }
+
+        let billingMarkers = [
+            "prepayment credits are depleted",
+            "prepaid credits",
+            "credits are depleted",
+            "credit balance",
+            "insufficient credits",
+            "insufficient credit",
+            "insufficient balance",
+            "account balance",
+            "balance is not enough",
+            "payment required",
+            "billing_hard_limit_reached",
+            "manage your project and billing",
+            "billing#prepay",
+            "prepay",
+            "billing"
+        ]
+
+        guard billingMarkers.contains(where: { normalized.contains($0) }) else {
+            return nil
+        }
+
+        return .billingCreditsDepleted(rawMessage)
+    }
+
+    static func quotaError(message: String?) -> AppError? {
+        let normalized = (message ?? "").lowercased()
+        guard normalized.contains("quota")
+            || normalized.contains("resource_exhausted")
+            || normalized.contains("quota_exceeded")
+            || normalized.contains("insufficient_quota")
+            || normalized.contains("rate quota")
+            || normalized.contains("limit exceeded") else {
+            return nil
+        }
+        return .quotaExceeded
     }
 
     var isRecoverableProxyFailure: Bool {

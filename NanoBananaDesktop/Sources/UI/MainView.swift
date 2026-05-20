@@ -735,7 +735,25 @@ struct MainView: View {
                         )
                 }
             }
+
+            generationCostRow
         }
+    }
+
+    private var generationCostRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "creditcard")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            Text(viewModel.generationCostDisplayText)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 12)
     }
 
     @ViewBuilder

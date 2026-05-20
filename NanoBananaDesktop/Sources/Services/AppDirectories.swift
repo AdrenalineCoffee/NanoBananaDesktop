@@ -22,4 +22,16 @@ enum AppDirectories {
         try applicationSupportDirectory(fileManager: fileManager)
             .appendingPathComponent("history.json", isDirectory: false)
     }
+
+    static func conceptProjectsDirectory(fileManager: FileManager = .default) throws -> URL {
+        let directory = try applicationSupportDirectory(fileManager: fileManager)
+            .appendingPathComponent("concept-projects", isDirectory: true)
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    static func conceptProjectDirectory(id: UUID, fileManager: FileManager = .default) throws -> URL {
+        try conceptProjectsDirectory(fileManager: fileManager)
+            .appendingPathComponent(id.uuidString, isDirectory: true)
+    }
 }

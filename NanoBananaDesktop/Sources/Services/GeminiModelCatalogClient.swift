@@ -75,7 +75,15 @@ actor GeminiModelCatalogClient {
         }
 
         if let apiError = decoded.error {
-            throw mapAPIError(statusCode: apiError.code ?? 0, message: apiError.message, route: route)
+            throw mapAPIError(
+                statusCode: apiError.code ?? 0,
+                message: errorDescription(
+                    message: apiError.message,
+                    status: apiError.status,
+                    code: apiError.code.map(String.init)
+                ),
+                route: route
+            )
         }
 
         let mapped: [ModelCatalogItem] = (decoded.models ?? []).compactMap { model -> ModelCatalogItem? in
@@ -84,6 +92,7 @@ actor GeminiModelCatalogClient {
             }
 
             return ModelCatalogItem(
+                provider: .gemini,
                 name: rawName.replacingOccurrences(of: "models/", with: ""),
                 displayName: model.displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
                 description: model.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
@@ -136,6 +145,9 @@ actor GeminiModelCatalogClient {
     }
 
     private func mapAPIError(statusCode: Int, message: String?, route: NetworkRoute) -> AppError {
+        if let billingError = AppError.billingCreditsDepletedError(message: message) {
+            return billingError
+        }
         let normalizedMessage = (message ?? "").lowercased()
 
         switch statusCode {
@@ -149,13 +161,16 @@ actor GeminiModelCatalogClient {
                 || normalizedMessage.contains("country is not supported") {
                 return .modelCatalogUnavailable(message ?? "User location is not supported for API use")
             }
-            if normalizedMessage.contains("quota") || normalizedMessage.contains("exceeded") {
-                return .quotaExceeded
+            if let quotaError = AppError.quotaError(message: message) {
+                return quotaError
             }
             return .permissionDenied
         case 407:
             return .proxyAuthFailed(message ?? "Proxy authentication failed")
         case 429:
+            if let quotaError = AppError.quotaError(message: message) {
+                return quotaError
+            }
             return .rateLimited
         case 500...599:
             return .serverError(statusCode)
@@ -169,7 +184,11 @@ actor GeminiModelCatalogClient {
 
     private func extractMessage(from data: Data) -> String? {
         if let envelope = try? JSONDecoder().decode(ErrorEnvelope.self, from: data) {
-            return envelope.error.message
+            return errorDescription(
+                message: envelope.error.message,
+                status: envelope.error.status,
+                code: envelope.error.code.map(String.init)
+            )
         }
 
         if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -178,6 +197,13 @@ actor GeminiModelCatalogClient {
         }
 
         return String(data: data, encoding: .utf8)
+    }
+
+    private func errorDescription(message: String?, status: String?, code: String?) -> String? {
+        let parts = [status, code, message]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: ": ")
     }
 
     private func mapURLError(_ error: URLError, route: NetworkRoute) -> AppError {

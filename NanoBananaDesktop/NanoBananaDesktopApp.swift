@@ -23,7 +23,9 @@ final class NanoBananaAppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct NanoBananaDesktopApp: App {
     @NSApplicationDelegateAdaptor(NanoBananaAppDelegate.self) private var appDelegate
-    @StateObject private var viewModel = MainViewModel()
+    @StateObject private var viewModel = MainViewModel(
+        generationNotificationService: GenerationNotificationService()
+    )
 
     var body: some Scene {
         WindowGroup {

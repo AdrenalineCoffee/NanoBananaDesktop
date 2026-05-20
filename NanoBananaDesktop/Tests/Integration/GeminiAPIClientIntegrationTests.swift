@@ -225,6 +225,60 @@ func generateImageMapsQuotaError() async throws {
 }
 
 @Test
+func generateImageMapsPrepaidCreditsError() async throws {
+    let apiKey = "key-prepaid-credits"
+    let session = makeSession()
+    let client = GeminiAPIClient()
+
+    MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
+        let json: [String: Any] = [
+            "error": [
+                "code": 429,
+                "message": "Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing. Learn more at https://ai.google.dev/gemini-api/docs/billing#prepay.",
+                "status": "RESOURCE_EXHAUSTED"
+            ]
+        ]
+        let responseData = try JSONSerialization.data(withJSONObject: json)
+        let response = HTTPURLResponse(
+            url: try #require(request.url),
+            statusCode: 429,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (response, responseData)
+    }
+
+    let request = GenerationRequest(
+        mode: .generate,
+        prompt: "test",
+        model: AppConfig.defaultModel,
+        apiKey: apiKey,
+        resolution: .k1,
+        aspectRatio: .square,
+        inputImages: []
+    )
+
+    do {
+        _ = try await client.generateImage(
+            request: request,
+            timeoutSec: 30,
+            session: session,
+            route: .proxy
+        )
+        Issue.record("Expected billing credits error")
+    } catch let error as AppError {
+        if case .billingCreditsDepleted(let details) = error {
+            #expect(details.contains("RESOURCE_EXHAUSTED"))
+            #expect(details.contains("prepayment credits are depleted"))
+        } else {
+            Issue.record("Expected dedicated billing credits error")
+        }
+    }
+
+    MockURLProtocol.removeHandler(forAPIKey: apiKey)
+}
+
+@Test
 func generateImageMapsProxyAuthError() async throws {
     let apiKey = "key-proxy-auth"
     let session = makeSession()

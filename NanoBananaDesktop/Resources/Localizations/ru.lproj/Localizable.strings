@@ -1,6 +1,7 @@
 "app.title" = "NanoBanana Desktop";
 
 "nav.create" = "Создание";
+"nav.concepting" = "Концептинг";
 "nav.history" = "История";
 "nav.settings" = "Настройки";
 
@@ -48,11 +49,17 @@
 "settings.group.output" = "Вывод";
 "settings.group.localization" = "Локализация";
 "settings.api_key" = "Gemini API ключ";
+"settings.openai_api_key" = "OpenAI API ключ";
+"settings.openai_compatible_api_key" = "OpenAI-compatible API ключ";
+"settings.openai_compatible_base_url" = "OpenAI-compatible Base URL";
+"settings.kie_api_key" = "Kie.ai API ключ";
+"settings.provider_enabled" = "Включено";
 "settings.model" = "Модель";
 "settings.image_model" = "Модель для генерации изображений";
 "settings.prompt_model" = "Модель для работы с промптом";
 "settings.prompt_from_image_instruction" = "Запрос для генерации промпта по загруженной фотографии";
 "settings.prompt_enhancement_instruction" = "Шаблон улучшения промпта";
+"settings.concept_prompt_additions" = "Добавления к промпту концептинга";
 "settings.model_sync_hint" = "Эта модель синхронизирована с выбором нейросети на экране Создание.";
 "settings.presets_empty" = "Сохранённых пресетов пока нет.";
 "settings.preset_meta_format" = "%@ • %@ • %@ • %d";
@@ -72,6 +79,10 @@
 "settings.refresh_models" = "Обновить";
 "settings.api_check" = "Проверить доступность API";
 "settings.api_check_in_progress" = "Проверка...";
+"settings.api_check_success_gemini" = "Gemini: моделей для изображений %d, text-моделей %d.";
+"settings.api_check_success_openai" = "OpenAI: моделей для изображений %d.";
+"settings.api_check_failure_gemini" = "Gemini: %@";
+"settings.api_check_failure_openai" = "OpenAI: %@";
 "settings.api_check_success" = "API доступен. Моделей для изображений: %d, text-моделей: %d.";
 "settings.api_check_success_fallback" = "API доступен через прямой fallback. Моделей для изображений: %d, text-моделей: %d.";
 "settings.language" = "Язык";
@@ -79,6 +90,7 @@
 "settings.output_dir_placeholder" = "/Users/you/Pictures/NanoBanana_img";
 "settings.output_default_hint" = "По умолчанию: ~/Pictures/NanoBanana_img";
 "settings.timeout" = "Таймаут запроса";
+"settings.generation_completion_notifications" = "Уведомлять о завершении генерации";
 "settings.version_value" = "Версия: %@";
 "settings.proxy_enabled" = "Использовать прокси для сетевых запросов";
 "settings.allow_direct_fallback" = "Разрешить прямой fallback при сбое прокси";
@@ -126,6 +138,9 @@
 "history.reuse_prompt_only_missing_files" = "Промпт загружен из истории. Исходные файлы недоступны: %@";
 "history.output_unavailable" = "Файл результата недоступен по сохраненному пути.";
 "history.thumbnail_alt" = "Миниатюра результата";
+"history.page_format" = "Страница %d из %d";
+"history.previous_page" = "Предыдущая страница";
+"history.next_page" = "Следующая страница";
 
 "route.proxy" = "PROXY";
 "route.direct_fallback" = "DIRECT FALLBACK";
@@ -146,6 +161,9 @@
 "status.prompt_enhanced" = "Промпт успешно улучшен.";
 "status.prompt_from_image_in_progress" = "Генерируем промпт по изображению...";
 "status.prompt_from_image_done" = "Промпт по изображению готов.";
+"notification.generation_completed_title" = "Nano Banana Pro";
+"notification.generation_completed_single" = "Генерация изображения завершена.";
+"notification.generation_completed_multiple" = "Генерация завершена. Готово изображений: %d.";
 "status.preset_saved" = "Пресет «%@» сохранён.";
 "status.preset_applied" = "Пресет «%@» применён.";
 "status.preset_renamed" = "Пресет переименован: %@.";
@@ -156,7 +174,12 @@
 "warning.config_store_unavailable" = "Хранилище конфигурации недоступно, используются настройки в памяти.";
 
 "error.empty_prompt" = "Введите промпт.";
-"error.missing_api_key" = "Не указан API ключ. Добавьте GEMINI API key в Настройках.";
+"error.missing_api_key" = "Не указан API ключ. Добавьте ключ провайдера в Настройках.";
+"error.missing_openai_api_key" = "Не указан OpenAI API ключ. Добавьте его в Настройках.";
+"error.missing_openai_compatible_api_key" = "Не указан OpenAI-compatible API ключ. Добавьте ключ шлюза в Настройках.";
+"error.missing_kie_api_key" = "Не указан Kie.ai API ключ. Добавьте его в Настройках.";
+"error.provider_disabled" = "Провайдер отключен в Настройках.";
+"error.invalid_openai_compatible_base_url" = "Некорректный OpenAI-compatible Base URL.";
 "error.prompt_from_image_no_valid_file" = "Не удалось найти валидное изображение для генерации промпта.";
 "error.prompt_from_image_model_not_supported" = "Выбранная модель не поддерживает загрузку изображений для работы с промптом.";
 "error.preset_name_empty" = "Введите название пресета.";
@@ -180,6 +203,7 @@
 "error.unauthorized" = "Ошибка авторизации. Проверьте API ключ.";
 "error.permission_denied" = "Нет доступа к модели или запрещен запрос.";
 "error.quota" = "Исчерпана квота API для этого ключа/аккаунта.";
+"error.billing_credits_depleted" = "Закончились prepaid credits или баланс биллинга для этого API ключа.";
 "error.rate_limited" = "Превышен лимит запросов. Повторите позже.";
 "error.server" = "Ошибка сервера.";
 "error.server_with_code" = "Ошибка сервера (HTTP %d).";
@@ -188,5 +212,59 @@
 "error.no_text_in_response" = "В ответе API нет текста с улучшенным промптом.";
 "error.decoding" = "Не удалось разобрать ответ API.";
 "error.io" = "Ошибка файловой системы";
+"error.kie_upload_failed" = "Не удалось загрузить изображение в Kie.ai.";
+"error.kie_task_failed" = "Задача Kie.ai завершилась ошибкой.";
 
 "main.inspector_resize_help" = "Изменить ширину панели параметров";
+
+"concept.title" = "Концептинг";
+"concept.new" = "Очистить холст";
+"concept.layers" = "Слои";
+"concept.add_layer" = "Добавить слой";
+"concept.add_reference" = "Добавить референс";
+"concept.import_image" = "Импортировать изображение";
+"concept.canvas" = "Холст";
+"concept.canvas_aspect" = "Соотношение холста";
+"concept.canvas_size" = "Размер холста";
+"concept.canvas_size.small" = "S";
+"concept.canvas_size.medium" = "M";
+"concept.canvas_size.large" = "L";
+"concept.canvas_background" = "Фон холста";
+"concept.active_layer" = "Активный слой";
+"concept.layer_name" = "Название слоя";
+"concept.layer_not_editable" = "На заблокированном или reference-слое рисование недоступно.";
+"concept.no_layer_selected" = "Выберите слой, чтобы отредактировать его свойства.";
+"concept.layer_type.reference" = "Reference";
+"concept.layer_type.sketch" = "Скетч";
+"concept.layer_type.result" = "Результат";
+"concept.remove_background" = "Вырезать фон";
+"concept.duplicate_layer" = "Дублировать слой";
+"concept.delete_layer" = "Удалить слой";
+"concept.move_up" = "Поднять слой";
+"concept.move_down" = "Опустить слой";
+"concept.brush_color" = "Цвет кисти";
+"concept.brush_size" = "Размер";
+"concept.opacity" = "Непрозрачность";
+"concept.canvas_empty_title" = "Здесь появится концепт";
+"concept.canvas_empty_description" = "Импортируйте reference-слой, рисуйте поверх него и запускайте генерацию справа.";
+"concept.prompt_placeholder" = "Опишите, что нужно доработать по скетчу и какие слои нельзя менять.";
+"concept.final_prompt_preview" = "Итоговый промпт";
+"concept.reference_mode" = "Соответствие референсу";
+"concept.reference_mode.strict" = "Strict preserve";
+"concept.reference_mode.balanced" = "Balanced";
+"concept.reference_mode.creative" = "Creative";
+
+"error.concept_no_editable_region" = "Нет редактируемой области. Добавьте незаблокированный скетч или результат.";
+"error.concept_no_locked_base" = "Нет заблокированной базы. Перед генерацией заблокируйте референсный или базовый слой.";
+"error.concept_no_project_loaded" = "Проект концептинга не загружен.";
+"error.concept_invalid_layer" = "Выбран некорректный слой.";
+"error.concept_import_failed" = "Не удалось импортировать изображение в слой.";
+"error.concept_background_removal_unavailable" = "Вырезание фона доступно только в macOS 14 и новее.";
+"error.concept_background_removal_failed" = "Не удалось вырезать фон слоя.";
+
+"status.concept_background_removed" = "Фон слоя удалён.";
+"sidebar.kie_balance" = "Kie balance: %@ credits";
+"sidebar.kie_balance_loading" = "Kie balance: загрузка...";
+"sidebar.kie_balance_unknown" = "Kie balance: неизвестен";
+"sidebar.kie_balance_error" = "Kie balance: ошибка";
+"sidebar.kie_balance_refresh" = "Обновить баланс Kie.ai";

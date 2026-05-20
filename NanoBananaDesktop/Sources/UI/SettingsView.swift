@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var isDeletePresetConfirmationPresented: Bool = false
     @State private var isPromptEnhancementInstructionExpanded: Bool = false
     @State private var isPromptFromImageInstructionExpanded: Bool = false
+    @State private var isConceptPromptAdditionsExpanded: Bool = false
     @State private var isPresetsExpanded: Bool = false
 
     private var noProxyHostsTextBinding: Binding<String> {
@@ -36,19 +37,68 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text(viewModel.localized("settings.title"))
                     .font(.largeTitle.weight(.semibold))
+                    .frame(maxWidth: .infinity, alignment: .center)
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 10) {
                         Text(viewModel.localized("settings.group.api"))
                             .font(.headline)
 
-                        LabeledContent(viewModel.localized("settings.api_key")) {
-                            SecureField("", text: Binding(
+                        providerSecureKeyRow(
+                            title: viewModel.localized("settings.api_key"),
+                            isEnabled: Binding(
+                                get: { viewModel.config.geminiEnabled },
+                                set: { viewModel.config.geminiEnabled = $0 }
+                            ),
+                            key: Binding(
                                 get: { viewModel.config.apiKey },
                                 set: { viewModel.config.apiKey = $0 }
+                            )
+                        )
+
+                        providerSecureKeyRow(
+                            title: viewModel.localized("settings.openai_api_key"),
+                            isEnabled: Binding(
+                                get: { viewModel.config.openAIEnabled },
+                                set: { viewModel.config.openAIEnabled = $0 }
+                            ),
+                            key: Binding(
+                                get: { viewModel.config.openAIAPIKey },
+                                set: { viewModel.config.openAIAPIKey = $0 }
+                            )
+                        )
+
+                        providerSecureKeyRow(
+                            title: viewModel.localized("settings.openai_compatible_api_key"),
+                            isEnabled: Binding(
+                                get: { viewModel.config.openAICompatibleEnabled },
+                                set: { viewModel.config.openAICompatibleEnabled = $0 }
+                            ),
+                            key: Binding(
+                                get: { viewModel.config.openAICompatibleAPIKey },
+                                set: { viewModel.config.openAICompatibleAPIKey = $0 }
+                            )
+                        )
+
+                        LabeledContent(viewModel.localized("settings.openai_compatible_base_url")) {
+                            TextField(AppConfig.defaultOpenAICompatibleBaseURL, text: Binding(
+                                get: { viewModel.config.openAICompatibleBaseURL },
+                                set: { viewModel.config.openAICompatibleBaseURL = $0 }
                             ))
                             .textFieldStyle(.roundedBorder)
                         }
+
+                        providerSecureKeyRow(
+                            title: viewModel.localized("settings.kie_api_key"),
+                            isEnabled: Binding(
+                                get: { viewModel.config.kieEnabled },
+                                set: { viewModel.config.kieEnabled = $0 }
+                            ),
+                            key: Binding(
+                                get: { viewModel.config.kieAPIKey },
+                                set: { viewModel.config.kieAPIKey = $0 }
+                            )
+                        )
 
                         LabeledContent(viewModel.localized("settings.image_model")) {
                             Picker("", selection: Binding(
@@ -148,6 +198,15 @@ struct SettingsView: View {
                             text: Binding(
                                 get: { viewModel.config.promptFromImageInstruction },
                                 set: { viewModel.config.promptFromImageInstruction = $0 }
+                            )
+                        )
+
+                        collapsibleEditorSection(
+                            title: viewModel.localized("settings.concept_prompt_additions"),
+                            isExpanded: $isConceptPromptAdditionsExpanded,
+                            text: Binding(
+                                get: { viewModel.config.conceptPromptAdditions },
+                                set: { viewModel.config.conceptPromptAdditions = $0 }
                             )
                         )
 
@@ -277,6 +336,11 @@ struct SettingsView: View {
                             }
                             .frame(maxWidth: 180, alignment: .trailing)
                         }
+
+                        Toggle(viewModel.localized("settings.generation_completion_notifications"), isOn: Binding(
+                            get: { viewModel.config.generationCompletionNotificationsEnabled },
+                            set: { viewModel.config.generationCompletionNotificationsEnabled = $0 }
+                        ))
                     }
                     .padding(12)
                 }
@@ -390,6 +454,24 @@ struct SettingsView: View {
         }
 
         return .green
+    }
+
+    @ViewBuilder
+    private func providerSecureKeyRow(
+        title: String,
+        isEnabled: Binding<Bool>,
+        key: Binding<String>
+    ) -> some View {
+        LabeledContent(title) {
+            HStack(spacing: 10) {
+                Toggle(viewModel.localized("settings.provider_enabled"), isOn: isEnabled)
+                    .toggleStyle(.switch)
+
+                SecureField("", text: key)
+                    .textFieldStyle(.roundedBorder)
+                    .disabled(!isEnabled.wrappedValue)
+            }
+        }
     }
 
     @ViewBuilder

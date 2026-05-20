@@ -17,6 +17,10 @@ enum HistoryReuseOutcome: Equatable {
 
 @MainActor
 final class MainViewModel: ObservableObject {
+    private struct CompletedGeneratedAsset: Sendable {
+        let image: GeneratedImageResult
+    }
+
     @Published var config: AppConfig
     @Published var prompt: String = ""
     @Published var resolutionSelection: ResolutionSelection = .k1
@@ -40,6 +44,10 @@ final class MainViewModel: ObservableObject {
     @Published var lastOutputPaths: [String] = []
     @Published var lastGeneratedImage: NSImage?
     @Published var lastGeneratedImages: [NSImage] = []
+    @Published var lastActualGenerationCost: GenerationCostEstimate?
+    @Published var kieBalanceCredits: Double?
+    @Published var isLoadingKieBalance: Bool = false
+    @Published var kieBalanceError: String?
     @Published var availableImageModels: [ModelCatalogItem] = []
     @Published var availableTextModels: [ModelCatalogItem] = []
     @Published var isLoadingModels: Bool = false
@@ -66,13 +74,30 @@ final class MainViewModel: ObservableObject {
     private let filenameGenerator: FilenameGenerator
     private let imagePersistenceService: ImagePersistenceService
     private let apiClient: GeminiAPIClient
+    private let openAIImageAPIClient: OpenAIImageAPIClient
+    private let openAITextAPIClient: OpenAITextAPIClient
+    private let kieImageAPIClient: KieAIImageAPIClient
+    private let kieTextAPIClient: KieAITextAPIClient
+    private let kieAccountAPIClient: KieAccountAPIClient
     private let modelCatalogClient: GeminiModelCatalogClient
+    private let openAIModelCatalogClient: OpenAIModelCatalogClient
     private let networkClientProvider: NetworkClientProvider
     private let mentionService: AttachmentMentionService
+    private let generationNotificationService: any GenerationNotificationServiceProtocol
 
     private let supportedAttachmentExtensions = Set(["png", "jpg", "jpeg", "webp"])
-    private var modelCatalogCache: [String: [ModelCatalogItem]] = [:]
+    private var geminiModelCatalogCache: [String: [ModelCatalogItem]] = [:]
+    private var openAIModelCatalogCache: [String: [ModelCatalogItem]] = [:]
+    private var openAICompatibleModelCatalogCache: [String: [ModelCatalogItem]] = [:]
     private var lastSavedAPIKey: String = ""
+    private var lastSavedOpenAIAPIKey: String = ""
+    private var lastSavedOpenAICompatibleAPIKey: String = ""
+    private var lastSavedOpenAICompatibleBaseURL: String = ""
+    private var lastSavedKieAPIKey: String = ""
+    private var lastSavedGeminiEnabled: Bool = true
+    private var lastSavedOpenAIEnabled: Bool = true
+    private var lastSavedOpenAICompatibleEnabled: Bool = true
+    private var lastSavedKieEnabled: Bool = true
 
     init(
         fileManager: FileManager = .default,
@@ -82,18 +107,32 @@ final class MainViewModel: ObservableObject {
         filenameGenerator: FilenameGenerator = FilenameGenerator(),
         imagePersistenceService: ImagePersistenceService = ImagePersistenceService(),
         apiClient: GeminiAPIClient = GeminiAPIClient(),
+        openAIImageAPIClient: OpenAIImageAPIClient = OpenAIImageAPIClient(),
+        openAITextAPIClient: OpenAITextAPIClient = OpenAITextAPIClient(),
+        kieImageAPIClient: KieAIImageAPIClient = KieAIImageAPIClient(),
+        kieTextAPIClient: KieAITextAPIClient = KieAITextAPIClient(),
+        kieAccountAPIClient: KieAccountAPIClient = KieAccountAPIClient(),
         modelCatalogClient: GeminiModelCatalogClient = GeminiModelCatalogClient(),
+        openAIModelCatalogClient: OpenAIModelCatalogClient = OpenAIModelCatalogClient(),
         networkClientProvider: NetworkClientProvider = ProxySessionFactory(),
-        mentionService: AttachmentMentionService = AttachmentMentionService()
+        mentionService: AttachmentMentionService = AttachmentMentionService(),
+        generationNotificationService: any GenerationNotificationServiceProtocol = NoopGenerationNotificationService()
     ) {
         self.fileManager = fileManager
         self.resolutionMapper = resolutionMapper
         self.filenameGenerator = filenameGenerator
         self.imagePersistenceService = imagePersistenceService
         self.apiClient = apiClient
+        self.openAIImageAPIClient = openAIImageAPIClient
+        self.openAITextAPIClient = openAITextAPIClient
+        self.kieImageAPIClient = kieImageAPIClient
+        self.kieTextAPIClient = kieTextAPIClient
+        self.kieAccountAPIClient = kieAccountAPIClient
         self.modelCatalogClient = modelCatalogClient
+        self.openAIModelCatalogClient = openAIModelCatalogClient
         self.networkClientProvider = networkClientProvider
         self.mentionService = mentionService
+        self.generationNotificationService = generationNotificationService
 
         let loadedConfigStore = configStore ?? (try? AppConfigStore(fileManager: fileManager))
         self.configStore = loadedConfigStore
@@ -116,6 +155,14 @@ final class MainViewModel: ObservableObject {
         }
 
         self.lastSavedAPIKey = self.config.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.lastSavedOpenAIAPIKey = self.config.openAIAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.lastSavedOpenAICompatibleAPIKey = self.config.openAICompatibleAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.lastSavedOpenAICompatibleBaseURL = self.config.openAICompatibleBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.lastSavedKieAPIKey = self.config.kieAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.lastSavedGeminiEnabled = self.config.geminiEnabled
+        self.lastSavedOpenAIEnabled = self.config.openAIEnabled
+        self.lastSavedOpenAICompatibleEnabled = self.config.openAICompatibleEnabled
+        self.lastSavedKieEnabled = self.config.kieEnabled
     }
 
     var filteredHistory: [HistoryRecord] {
@@ -143,9 +190,11 @@ final class MainViewModel: ObservableObject {
     }
 
     var canGenerate: Bool {
-        !isGenerating &&
-            !isGeneratingPromptFromImage &&
-            !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let promptReady = currentImageModelRequiresPrompt
+            ? !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            : true
+        let inputReady = currentImageModelRequiresInputImage ? !attachedImages.isEmpty : true
+        return !isGenerating && !isGeneratingPromptFromImage && promptReady && inputReady
     }
 
     var canEnhancePrompt: Bool {
@@ -196,6 +245,62 @@ final class MainViewModel: ObservableObject {
         "\(imageCountSelection)"
     }
 
+    var generationCostDisplayText: String {
+        GenerationCostRegistry.displayText(for: generationCostEstimate, language: config.language)
+    }
+
+    var shouldShowKieBalance: Bool {
+        config.kieEnabled && !config.kieAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var kieBalanceDisplayText: String {
+        if isLoadingKieBalance {
+            return localized("sidebar.kie_balance_loading")
+        }
+
+        if let kieBalanceCredits {
+            let value: String
+            if kieBalanceCredits.rounded() == kieBalanceCredits {
+                value = String(format: "%.0f", kieBalanceCredits)
+            } else {
+                value = String(format: "%.2f", kieBalanceCredits)
+            }
+            return localized("sidebar.kie_balance", value)
+        }
+
+        if let kieBalanceError, !kieBalanceError.isEmpty {
+            return localized("sidebar.kie_balance_error")
+        }
+
+        return localized("sidebar.kie_balance_unknown")
+    }
+
+    private var generationCostEstimate: GenerationCostEstimate {
+        let provider = imageModelProvider(for: config.model)
+        let apiModel = apiModelName(for: config.model)
+        let resolvedResolution = resolutionMapper.resolve(
+            prompt: prompt.trimmingCharacters(in: .whitespacesAndNewlines),
+            selection: resolutionSelection
+        )
+
+        if let actual = lastActualGenerationCost,
+           actual.matches(
+            provider: provider,
+            model: apiModel,
+            resolution: resolvedResolution,
+            imageCount: imageCountSelection
+           ) {
+            return actual
+        }
+
+        return GenerationCostRegistry.estimate(
+            provider: provider,
+            model: apiModel,
+            resolution: resolvedResolution,
+            imageCount: imageCountSelection
+        )
+    }
+
     var resolvedAspectRatio: ImageAspectRatio {
         if let manual = aspectRatioSelection.manualAspectRatio {
             return manual
@@ -208,11 +313,27 @@ final class MainViewModel: ObservableObject {
     }
 
     var selectableImageModels: [ModelCatalogItem] {
-        mergedModelCatalog(models: availableImageModels, with: config.model)
+        mergedImageModelCatalog(models: availableImageModels, with: config.model)
     }
 
     var selectableTextModels: [ModelCatalogItem] {
-        mergedModelCatalog(models: availableTextModels, with: config.promptEnhancementModel)
+        mergedTextModelCatalog(models: availableTextModels, with: config.promptEnhancementModel)
+    }
+
+    private var currentImageModelRequiresPrompt: Bool {
+        guard imageModelProvider(for: config.model) == .kie,
+              let spec = KieModelRegistry.spec(for: config.model) else {
+            return true
+        }
+        return spec.kind.requiresPrompt
+    }
+
+    private var currentImageModelRequiresInputImage: Bool {
+        guard imageModelProvider(for: config.model) == .kie,
+              let spec = KieModelRegistry.spec(for: config.model) else {
+            return false
+        }
+        return spec.requiresInputImage
     }
 
     var hasOutputToReveal: Bool {
@@ -287,22 +408,91 @@ final class MainViewModel: ObservableObject {
 
     func handleMainViewAppeared() {
         refreshAvailableModels(trigger: .onAppear)
+        refreshKieBalance()
     }
 
     func modelTitle(for item: ModelCatalogItem) -> String {
+        let apiModelName = ModelProvider.apiModelName(from: item.name)
+        let providerSuffix = item.provider == .openAICompatible || item.provider == .kie
+            ? " • \(item.provider.displayName)"
+            : ""
+
         if item.isCustomFallback {
-            return localized("main.model_custom", item.name)
+            return localized("main.model_custom", apiModelName) + providerSuffix
         }
 
         if item.displayName.isEmpty {
-            return item.name
+            return apiModelName + providerSuffix
         }
 
-        if item.displayName.caseInsensitiveCompare(item.name) == .orderedSame {
-            return item.displayName
+        if item.displayName.caseInsensitiveCompare(apiModelName) == .orderedSame {
+            return item.displayName + providerSuffix
         }
 
-        return "\(item.displayName) (\(item.name))"
+        return "\(item.displayName) (\(apiModelName))\(providerSuffix)"
+    }
+
+    func imageModelProvider(for modelName: String) -> ModelProvider {
+        let trimmedModel = modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let knownModel = availableImageModels.first(where: { $0.name == trimmedModel }) {
+            return knownModel.provider
+        }
+        return ModelProvider.inferImageProvider(from: trimmedModel)
+    }
+
+    func promptModelProvider(for modelName: String) -> ModelProvider {
+        let trimmedModel = modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let knownModel = availableTextModels.first(where: { $0.name == trimmedModel }) {
+            return knownModel.provider
+        }
+        return ModelProvider.inferTextProvider(from: trimmedModel)
+    }
+
+    func apiKey(for provider: ModelProvider) -> String {
+        switch provider {
+        case .gemini:
+            return config.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .openAI:
+            return config.openAIAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .openAICompatible:
+            return config.openAICompatibleAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .kie:
+            return config.kieAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
+
+    func isProviderEnabled(_ provider: ModelProvider) -> Bool {
+        switch provider {
+        case .gemini:
+            return config.geminiEnabled
+        case .openAI:
+            return config.openAIEnabled
+        case .openAICompatible:
+            return config.openAICompatibleEnabled
+        case .kie:
+            return config.kieEnabled
+        }
+    }
+
+    func apiModelName(for selectedModelName: String) -> String {
+        ModelProvider.apiModelName(from: selectedModelName)
+    }
+
+    func missingAPIKeyError(for provider: ModelProvider) -> AppError {
+        switch provider {
+        case .gemini:
+            return .missingAPIKey
+        case .openAI:
+            return .missingOpenAIAPIKey
+        case .openAICompatible:
+            return .missingOpenAICompatibleAPIKey
+        case .kie:
+            return .missingKieAPIKey
+        }
+    }
+
+    func providerDisabledError(for provider: ModelProvider) -> AppError {
+        .providerDisabled(provider.displayName)
     }
 
     func refreshAvailableModels(trigger: ModelRefreshTrigger = .manual) {
@@ -356,7 +546,23 @@ final class MainViewModel: ObservableObject {
             : normalizedPromptFromImageInstruction
 
         let updatedAPIKey = config.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        config.openAIAPIKey = config.openAIAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let updatedOpenAIAPIKey = config.openAIAPIKey
+        config.openAICompatibleAPIKey = config.openAICompatibleAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        config.openAICompatibleBaseURL = normalizedOpenAICompatibleBaseURLString(config.openAICompatibleBaseURL)
+        config.kieAPIKey = config.kieAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let updatedOpenAICompatibleAPIKey = config.openAICompatibleAPIKey
+        let updatedOpenAICompatibleBaseURL = config.openAICompatibleBaseURL
+        let updatedKieAPIKey = config.kieAPIKey
         let didAPIKeyChange = updatedAPIKey != lastSavedAPIKey
+        let didOpenAIAPIKeyChange = updatedOpenAIAPIKey != lastSavedOpenAIAPIKey
+        let didOpenAICompatibleAPIKeyChange = updatedOpenAICompatibleAPIKey != lastSavedOpenAICompatibleAPIKey
+        let didOpenAICompatibleBaseURLChange = updatedOpenAICompatibleBaseURL != lastSavedOpenAICompatibleBaseURL
+        let didKieAPIKeyChange = updatedKieAPIKey != lastSavedKieAPIKey
+        let didProviderEnablementChange = config.geminiEnabled != lastSavedGeminiEnabled ||
+            config.openAIEnabled != lastSavedOpenAIEnabled ||
+            config.openAICompatibleEnabled != lastSavedOpenAICompatibleEnabled ||
+            config.kieEnabled != lastSavedKieEnabled
 
         if config.proxyEnabled {
             let validation = proxyValidationResult
@@ -369,14 +575,63 @@ final class MainViewModel: ObservableObject {
         do {
             try configStore?.save(config)
             lastSavedAPIKey = updatedAPIKey
-            if didAPIKeyChange {
+            lastSavedOpenAIAPIKey = updatedOpenAIAPIKey
+            lastSavedOpenAICompatibleAPIKey = updatedOpenAICompatibleAPIKey
+            lastSavedOpenAICompatibleBaseURL = updatedOpenAICompatibleBaseURL
+            lastSavedKieAPIKey = updatedKieAPIKey
+            lastSavedGeminiEnabled = config.geminiEnabled
+            lastSavedOpenAIEnabled = config.openAIEnabled
+            lastSavedOpenAICompatibleEnabled = config.openAICompatibleEnabled
+            lastSavedKieEnabled = config.kieEnabled
+            if didAPIKeyChange ||
+                didOpenAIAPIKeyChange ||
+                didOpenAICompatibleAPIKeyChange ||
+                didOpenAICompatibleBaseURLChange ||
+                didKieAPIKeyChange ||
+                didProviderEnablementChange {
                 refreshAvailableModels(trigger: .keyChanged)
+            }
+            if didKieAPIKeyChange || didProviderEnablementChange {
+                refreshKieBalance()
             }
         } catch let appError as AppError {
             setError(appError)
         } catch {
             setError(.ioError(error.localizedDescription))
         }
+    }
+
+    func refreshKieBalance() {
+        Task { [weak self] in
+            guard let self else {
+                return
+            }
+            await self.refreshKieBalanceAsync()
+        }
+    }
+
+    private func normalizedOpenAICompatibleBaseURLString(_ candidate: String) -> String {
+        var trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            trimmed = AppConfig.defaultOpenAICompatibleBaseURL
+        }
+
+        while trimmed.hasSuffix("/") {
+            trimmed.removeLast()
+        }
+
+        return trimmed.isEmpty ? AppConfig.defaultOpenAICompatibleBaseURL : trimmed
+    }
+
+    func openAICompatibleBaseURL() throws -> URL {
+        let normalized = normalizedOpenAICompatibleBaseURLString(config.openAICompatibleBaseURL)
+        guard let url = URL(string: normalized),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "https" || scheme == "http",
+              url.host?.isEmpty == false else {
+            throw AppError.invalidOpenAICompatibleBaseURL(normalized)
+        }
+        return url
     }
 
     func setOutputDirectory(path: String) {
@@ -393,6 +648,21 @@ final class MainViewModel: ObservableObject {
         errorMessage = nil
         successMessage = nil
         modelResponseText = nil
+    }
+
+    func postGenerationCompletionNotificationIfEnabled(imageCount: Int) {
+        guard config.generationCompletionNotificationsEnabled else {
+            return
+        }
+
+        let language = config.language
+        let normalizedImageCount = max(1, imageCount)
+        Task {
+            await generationNotificationService.notifyGenerationCompleted(
+                language: language,
+                imageCount: normalizedImageCount
+            )
+        }
     }
 
     func presentSavePresetSheet() {
@@ -638,15 +908,23 @@ final class MainViewModel: ObservableObject {
     func generate() {
         clearTransientMessages()
 
+        let selectedProvider = imageModelProvider(for: config.model)
+        guard isProviderEnabled(selectedProvider) else {
+            setError(providerDisabledError(for: selectedProvider))
+            return
+        }
+
+        let selectedKieSpec = selectedProvider == .kie ? KieModelRegistry.spec(for: config.model) : nil
         let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedPrompt.isEmpty else {
+        if selectedKieSpec?.kind.requiresPrompt ?? true,
+           trimmedPrompt.isEmpty {
             setError(.emptyPrompt)
             return
         }
 
-        let apiKey = config.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let apiKey = self.apiKey(for: selectedProvider)
         guard !apiKey.isEmpty else {
-            setError(.missingAPIKey)
+            setError(missingAPIKeyError(for: selectedProvider))
             return
         }
 
@@ -670,13 +948,19 @@ final class MainViewModel: ObservableObject {
             return
         }
 
+        if selectedKieSpec?.requiresInputImage == true,
+           inputImages.isEmpty {
+            setError(.missingInputImage)
+            return
+        }
+
         let modeForHistory: GenerationMode = inputImages.isEmpty ? .generate : .edit
         let inputPaths = inputImages.map(\.fileURL.path)
 
         let request = GenerationRequest(
             mode: modeForHistory,
             prompt: trimmedPrompt,
-            model: config.model,
+            model: apiModelName(for: config.model),
             apiKey: apiKey,
             resolution: resolvedResolution,
             aspectRatio: requestAspectRatio,
@@ -695,6 +979,7 @@ final class MainViewModel: ObservableObject {
         }
 
         isGenerating = true
+        lastActualGenerationCost = nil
         let startedAt = Date()
 
         Task { [weak self] in
@@ -708,10 +993,30 @@ final class MainViewModel: ObservableObject {
                 var routeUsed = primaryRoute
                 var fallbackUsed = false
 
+                if request.imageCount > 1 &&
+                    (primaryRoute != .proxy || !self.config.allowDirectFallback) {
+                    try await self.performParallelDirectGenerationIncrementally(
+                        request: request,
+                        provider: selectedProvider,
+                        outputDirectory: outputDirectory,
+                        prompt: trimmedPrompt,
+                        modeForHistory: modeForHistory,
+                        inputPaths: inputPaths,
+                        resolvedResolution: resolvedResolution,
+                        route: primaryRoute,
+                        proxyUsed: primaryRoute == .proxy,
+                        fallbackUsed: false,
+                        configuredProxySummary: configuredProxySummary,
+                        startedAt: startedAt
+                    )
+                    self.isGenerating = false
+                    return
+                }
+
                 let result: GenerationResult
                 if primaryRoute == .proxy {
                     do {
-                        result = try await self.performGeneration(request: request, route: .proxy)
+                        result = try await self.performGeneration(request: request, provider: selectedProvider, route: .proxy)
                     } catch let proxyError as AppError where proxyError.isRecoverableProxyFailure {
                         guard self.config.allowDirectFallback else {
                             throw AppError.directFallbackDisabled(proxyError.debugDetails)
@@ -719,10 +1024,10 @@ final class MainViewModel: ObservableObject {
 
                         routeUsed = .directFallback
                         fallbackUsed = true
-                        result = try await self.performGeneration(request: request, route: .directFallback)
+                        result = try await self.performGeneration(request: request, provider: selectedProvider, route: .directFallback)
                     }
                 } else {
-                    result = try await self.performGeneration(request: request, route: primaryRoute)
+                    result = try await self.performGeneration(request: request, provider: selectedProvider, route: primaryRoute)
                 }
 
                 var savedURLs: [URL] = []
@@ -736,7 +1041,8 @@ final class MainViewModel: ObservableObject {
                     let savedURL = try self.imagePersistenceService.savePNG(
                         imageData: generatedImage.imageData,
                         filename: imageFilename,
-                        outputDirectory: outputDirectory
+                        outputDirectory: outputDirectory,
+                        metadata: ImageGenerationMetadata(prompt: trimmedPrompt, model: request.model)
                     )
                     savedURLs.append(savedURL)
 
@@ -758,6 +1064,18 @@ final class MainViewModel: ObservableObject {
                     self.successMessage = self.localized("status.success_saved", firstSavedURL.path)
                 } else {
                     self.successMessage = self.localized("status.success_saved_multiple", savedURLs.count)
+                }
+                self.postGenerationCompletionNotificationIfEnabled(imageCount: savedURLs.count)
+                let estimatedCost = GenerationCostRegistry.estimate(
+                    provider: selectedProvider,
+                    model: request.model,
+                    resolution: resolvedResolution,
+                    imageCount: savedURLs.count
+                )
+                self.lastActualGenerationCost = result.cost
+                    ?? GenerationCostRegistry.combinedActualCost(from: result.images, fallback: estimatedCost)
+                if selectedProvider == .kie {
+                    await self.refreshKieBalanceAsync()
                 }
                 let mergedModelText = result.images
                     .compactMap(\.modelText)
@@ -843,15 +1161,20 @@ final class MainViewModel: ObservableObject {
             return
         }
 
-        let apiKey = config.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !apiKey.isEmpty else {
-            setError(.missingAPIKey)
-            return
-        }
-
         let enhancementModel = config.promptEnhancementModel.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !enhancementModel.isEmpty else {
             setError(.invalidConfiguration("Prompt enhancement model cannot be empty"))
+            return
+        }
+
+        let provider = promptModelProvider(for: enhancementModel)
+        guard isProviderEnabled(provider) else {
+            setError(providerDisabledError(for: provider))
+            return
+        }
+        let apiKey = self.apiKey(for: provider)
+        guard !apiKey.isEmpty else {
+            setError(missingAPIKeyError(for: provider))
             return
         }
 
@@ -873,8 +1196,9 @@ final class MainViewModel: ObservableObject {
                     do {
                         improvedPrompt = try await self.performPromptEnhancement(
                             prompt: enhancementInput,
-                            model: enhancementModel,
+                            model: self.apiModelName(for: enhancementModel),
                             apiKey: apiKey,
+                            provider: provider,
                             route: .proxy
                         )
                     } catch let proxyError as AppError where proxyError.isRecoverableProxyFailure {
@@ -884,16 +1208,18 @@ final class MainViewModel: ObservableObject {
 
                         improvedPrompt = try await self.performPromptEnhancement(
                             prompt: enhancementInput,
-                            model: enhancementModel,
+                            model: self.apiModelName(for: enhancementModel),
                             apiKey: apiKey,
+                            provider: provider,
                             route: .directFallback
                         )
                     }
                 } else {
                     improvedPrompt = try await self.performPromptEnhancement(
                         prompt: enhancementInput,
-                        model: enhancementModel,
+                        model: self.apiModelName(for: enhancementModel),
                         apiKey: apiKey,
+                        provider: provider,
                         route: primaryRoute
                     )
                 }
@@ -916,15 +1242,20 @@ final class MainViewModel: ObservableObject {
     func generatePromptFromImage(from droppedURLs: [URL]) {
         clearTransientMessages()
 
-        let apiKey = config.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !apiKey.isEmpty else {
-            setError(.missingAPIKey)
-            return
-        }
-
         let promptModel = config.promptEnhancementModel.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !promptModel.isEmpty else {
             setError(.invalidConfiguration("Prompt model cannot be empty"))
+            return
+        }
+
+        let provider = promptModelProvider(for: promptModel)
+        guard isProviderEnabled(provider) else {
+            setError(providerDisabledError(for: provider))
+            return
+        }
+        let apiKey = self.apiKey(for: provider)
+        guard !apiKey.isEmpty else {
+            setError(missingAPIKeyError(for: provider))
             return
         }
 
@@ -954,8 +1285,9 @@ final class MainViewModel: ObservableObject {
                     do {
                         generatedPrompt = try await self.performPromptFromImage(
                             prompt: instruction,
-                            model: promptModel,
+                            model: self.apiModelName(for: promptModel),
                             apiKey: apiKey,
+                            provider: provider,
                             images: [inputImage],
                             route: .proxy
                         )
@@ -966,8 +1298,9 @@ final class MainViewModel: ObservableObject {
 
                         generatedPrompt = try await self.performPromptFromImage(
                             prompt: instruction,
-                            model: promptModel,
+                            model: self.apiModelName(for: promptModel),
                             apiKey: apiKey,
+                            provider: provider,
                             images: [inputImage],
                             route: .directFallback
                         )
@@ -975,8 +1308,9 @@ final class MainViewModel: ObservableObject {
                 } else {
                     generatedPrompt = try await self.performPromptFromImage(
                         prompt: instruction,
-                        model: promptModel,
+                        model: self.apiModelName(for: promptModel),
                         apiKey: apiKey,
+                        provider: provider,
                         images: [inputImage],
                         route: primaryRoute
                     )
@@ -1106,12 +1440,62 @@ final class MainViewModel: ObservableObject {
         return .directFallback
     }
 
-    private func performGeneration(request: GenerationRequest, route: NetworkRoute) async throws -> GenerationResult {
-        let session = try networkClientProvider.makeSession(config: config, route: route)
-        if request.imageCount <= 1 {
+    private func executeImageGeneration(
+        request: GenerationRequest,
+        provider: ModelProvider,
+        timeoutSec: Int,
+        session: URLSession,
+        route: NetworkRoute
+    ) async throws -> GenerationResult {
+        switch provider {
+        case .gemini:
             return try await apiClient.generateImage(
                 request: request,
+                timeoutSec: timeoutSec,
+                session: session,
+                route: route
+            )
+        case .openAI:
+            return try await openAIImageAPIClient.generateImage(
+                request: request,
+                timeoutSec: timeoutSec,
+                session: session,
+                route: route
+            )
+        case .openAICompatible:
+            return try await OpenAIImageAPIClient(baseURL: try openAICompatibleBaseURL())
+                .generateImage(
+                    request: request,
+                    timeoutSec: timeoutSec,
+                    session: session,
+                    route: route
+                )
+        case .kie:
+            return try await kieImageAPIClient.generateImage(
+                request: request,
+                timeoutSec: timeoutSec,
+                session: session,
+                route: route
+            )
+        }
+    }
+
+    private func performGeneration(request: GenerationRequest, provider: ModelProvider, route: NetworkRoute) async throws -> GenerationResult {
+        let session = try networkClientProvider.makeSession(config: config, route: route)
+        if request.imageCount <= 1 {
+            return try await executeImageGeneration(
+                request: request,
+                provider: provider,
                 timeoutSec: config.requestTimeoutSec,
+                session: session,
+                route: route
+            )
+        }
+
+        if provider == .gemini {
+            return try await performParallelDirectGeneration(
+                request: request,
+                provider: provider,
                 session: session,
                 route: route
             )
@@ -1119,6 +1503,7 @@ final class MainViewModel: ObservableObject {
 
         return try await performParallelDirectGeneration(
             request: request,
+            provider: provider,
             session: session,
             route: route
         )
@@ -1126,6 +1511,7 @@ final class MainViewModel: ObservableObject {
 
     private func performParallelDirectGeneration(
         request: GenerationRequest,
+        provider: ModelProvider,
         session: URLSession,
         route: NetworkRoute
     ) async throws -> GenerationResult {
@@ -1142,9 +1528,9 @@ final class MainViewModel: ObservableObject {
         try await withThrowingTaskGroup(of: (Int, GeneratedImageResult).self) { taskGroup in
             for index in 0..<targetCount {
                 taskGroup.addTask {
-                    let directClient = GeminiAPIClient()
-                    let singleResult = try await directClient.generateImage(
+                    let singleResult = try await self.executeImageGeneration(
                         request: requestTemplate,
+                        provider: provider,
                         timeoutSec: timeoutSec,
                         session: session,
                         route: route
@@ -1166,39 +1552,291 @@ final class MainViewModel: ObservableObject {
             throw AppError.noImageInResponse
         }
 
-        return GenerationResult(images: images, usedResolution: request.resolution)
+        let estimatedCost = GenerationCostRegistry.estimate(
+            provider: provider,
+            model: request.model,
+            resolution: request.resolution,
+            imageCount: targetCount
+        )
+        return GenerationResult(
+            images: images,
+            usedResolution: request.resolution,
+            cost: GenerationCostRegistry.combinedActualCost(from: images, fallback: estimatedCost)
+        )
+    }
+
+    private func performParallelDirectGenerationIncrementally(
+        request: GenerationRequest,
+        provider: ModelProvider,
+        outputDirectory: URL,
+        prompt: String,
+        modeForHistory: GenerationMode,
+        inputPaths: [String],
+        resolvedResolution: ImageResolution,
+        route: NetworkRoute,
+        proxyUsed: Bool,
+        fallbackUsed: Bool,
+        configuredProxySummary: String?,
+        startedAt: Date
+    ) async throws {
+        let session = try networkClientProvider.makeSession(config: config, route: route)
+        let targetCount = min(max(request.imageCount, 1), 4)
+        let timeoutSec = config.requestTimeoutSec
+
+        let requestTemplate: GenerationRequest = {
+            var template = request
+            template.imageCount = 1
+            return template
+        }()
+
+        var completedAssets: [CompletedGeneratedAsset] = []
+        var savedPaths: [String] = []
+        var renderedImages: [NSImage] = []
+
+        try await withThrowingTaskGroup(of: CompletedGeneratedAsset.self) { taskGroup in
+            for _ in 0..<targetCount {
+                taskGroup.addTask {
+                    let singleResult = try await self.executeImageGeneration(
+                        request: requestTemplate,
+                        provider: provider,
+                        timeoutSec: timeoutSec,
+                        session: session,
+                        route: route
+                    )
+                    guard let firstImage = singleResult.images.first else {
+                        throw AppError.noImageInResponse
+                    }
+                    return CompletedGeneratedAsset(image: firstImage)
+                }
+            }
+
+            for try await completedAsset in taskGroup {
+                completedAssets.append(completedAsset)
+
+                let imageFilename = filenameGenerator.generateFilename(
+                    prompt: prompt,
+                    outputDirectory: outputDirectory
+                )
+                let savedURL = try imagePersistenceService.savePNG(
+                    imageData: completedAsset.image.imageData,
+                    filename: imageFilename,
+                    outputDirectory: outputDirectory,
+                    metadata: ImageGenerationMetadata(prompt: prompt, model: request.model)
+                )
+
+                savedPaths.append(savedURL.path)
+                lastOutputPaths = savedPaths
+                lastOutputPath = savedPaths.first
+
+                if let renderedImage = NSImage(contentsOf: savedURL) {
+                    renderedImages.append(renderedImage)
+                    lastGeneratedImages = renderedImages
+                    lastGeneratedImage = renderedImages.first
+                }
+
+                let mergedModelText = completedAssets
+                    .compactMap(\.image.modelText)
+                    .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                    .joined(separator: "\n\n")
+                modelResponseText = mergedModelText.isEmpty ? nil : mergedModelText
+
+                let durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+                appendHistory(
+                    HistoryRecord(
+                        mode: modeForHistory,
+                        prompt: prompt,
+                        resolution: resolvedResolution,
+                        inputImagePaths: inputPaths,
+                        outputImagePath: savedURL.path,
+                        status: .success,
+                        errorMessage: nil,
+                        durationMs: durationMs,
+                        modelResponseText: completedAsset.image.modelText,
+                        networkRoute: route,
+                        proxyUsed: proxyUsed,
+                        fallbackUsed: fallbackUsed,
+                        proxySummary: configuredProxySummary
+                    )
+                )
+            }
+        }
+
+        guard let firstSavedPath = savedPaths.first else {
+            throw AppError.noImageInResponse
+        }
+
+        let estimatedCost = GenerationCostRegistry.estimate(
+            provider: provider,
+            model: request.model,
+            resolution: resolvedResolution,
+            imageCount: savedPaths.count
+        )
+        lastActualGenerationCost = GenerationCostRegistry.combinedActualCost(
+            from: completedAssets.map(\.image),
+            fallback: estimatedCost
+        )
+        if provider == .kie {
+            await refreshKieBalanceAsync()
+        }
+
+        if savedPaths.count == 1 {
+            successMessage = localized("status.success_saved", firstSavedPath)
+        } else {
+            successMessage = localized("status.success_saved_multiple", savedPaths.count)
+        }
+        postGenerationCompletionNotificationIfEnabled(imageCount: savedPaths.count)
     }
 
     private func performPromptEnhancement(
         prompt: String,
         model: String,
         apiKey: String,
+        provider: ModelProvider,
         route: NetworkRoute
     ) async throws -> String {
         let session = try networkClientProvider.makeSession(config: config, route: route)
-        return try await apiClient.generateText(
-            prompt: prompt,
-            model: model,
-            apiKey: apiKey,
-            timeoutSec: config.requestTimeoutSec,
-            session: session,
-            route: route
-        )
+        switch provider {
+        case .gemini:
+            return try await apiClient.generateText(
+                prompt: prompt,
+                model: model,
+                apiKey: apiKey,
+                timeoutSec: config.requestTimeoutSec,
+                session: session,
+                route: route
+            )
+        case .openAI:
+            return try await openAITextAPIClient.generateText(
+                prompt: prompt,
+                model: model,
+                apiKey: apiKey,
+                timeoutSec: config.requestTimeoutSec,
+                session: session,
+                route: route
+            )
+        case .openAICompatible:
+            return try await OpenAITextAPIClient(baseURL: try openAICompatibleBaseURL())
+                .generateText(
+                    prompt: prompt,
+                    model: model,
+                    apiKey: apiKey,
+                    timeoutSec: config.requestTimeoutSec,
+                    session: session,
+                    route: route
+                )
+        case .kie:
+            return try await kieTextAPIClient.generateText(
+                prompt: prompt,
+                model: model,
+                apiKey: apiKey,
+                timeoutSec: config.requestTimeoutSec,
+                session: session,
+                route: route
+            )
+        }
     }
 
     private func performPromptFromImage(
         prompt: String,
         model: String,
         apiKey: String,
+        provider: ModelProvider,
         images: [GenerationInputImage],
         route: NetworkRoute
     ) async throws -> String {
         let session = try networkClientProvider.makeSession(config: config, route: route)
-        return try await apiClient.generateTextFromImages(
-            prompt: prompt,
-            model: model,
+        switch provider {
+        case .gemini:
+            return try await apiClient.generateTextFromImages(
+                prompt: prompt,
+                model: model,
+                apiKey: apiKey,
+                images: images,
+                timeoutSec: config.requestTimeoutSec,
+                session: session,
+                route: route
+            )
+        case .openAI:
+            return try await openAITextAPIClient.generateTextFromImages(
+                prompt: prompt,
+                model: model,
+                apiKey: apiKey,
+                images: images,
+                timeoutSec: config.requestTimeoutSec,
+                session: session,
+                route: route
+            )
+        case .openAICompatible:
+            return try await OpenAITextAPIClient(baseURL: try openAICompatibleBaseURL())
+                .generateTextFromImages(
+                    prompt: prompt,
+                    model: model,
+                    apiKey: apiKey,
+                    images: images,
+                    timeoutSec: config.requestTimeoutSec,
+                    session: session,
+                    route: route
+                )
+        case .kie:
+            return try await kieTextAPIClient.generateTextFromImages(
+                prompt: prompt,
+                model: model,
+                apiKey: apiKey,
+                images: images,
+                timeoutSec: config.requestTimeoutSec,
+                session: session,
+                route: route
+            )
+        }
+    }
+
+    private func refreshKieBalanceAsync() async {
+        let apiKey = config.kieAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard config.kieEnabled, !apiKey.isEmpty else {
+            kieBalanceCredits = nil
+            kieBalanceError = nil
+            isLoadingKieBalance = false
+            return
+        }
+
+        guard !isLoadingKieBalance else {
+            return
+        }
+
+        isLoadingKieBalance = true
+        defer { isLoadingKieBalance = false }
+
+        do {
+            let primaryRoute = try resolvePrimaryRoute()
+            let balance = try await fetchKieBalanceWithFallback(apiKey: apiKey, primaryRoute: primaryRoute)
+            kieBalanceCredits = balance
+            kieBalanceError = nil
+        } catch let appError as AppError {
+            kieBalanceError = displayMessage(for: appError)
+        } catch {
+            kieBalanceError = userMessage(for: .network(error.localizedDescription))
+        }
+    }
+
+    private func fetchKieBalanceWithFallback(apiKey: String, primaryRoute: NetworkRoute) async throws -> Double {
+        if primaryRoute == .proxy {
+            do {
+                return try await fetchKieBalance(apiKey: apiKey, route: .proxy)
+            } catch let proxyError as AppError where proxyError.isRecoverableProxyFailure {
+                guard config.allowDirectFallback else {
+                    throw AppError.directFallbackDisabled(proxyError.debugDetails)
+                }
+                return try await fetchKieBalance(apiKey: apiKey, route: .directFallback)
+            }
+        }
+
+        return try await fetchKieBalance(apiKey: apiKey, route: primaryRoute)
+    }
+
+    private func fetchKieBalance(apiKey: String, route: NetworkRoute) async throws -> Double {
+        let session = try networkClientProvider.makeSession(config: config, route: route)
+        return try await kieAccountAPIClient.fetchCreditBalance(
             apiKey: apiKey,
-            images: images,
             timeoutSec: config.requestTimeoutSec,
             session: session,
             route: route
@@ -1206,8 +1844,22 @@ final class MainViewModel: ObservableObject {
     }
 
     private func refreshAvailableModelsAsync(trigger: ModelRefreshTrigger) async {
-        let trimmedAPIKey = config.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedAPIKey.isEmpty else {
+        let trimmedGeminiKey = config.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedOpenAIKey = config.openAIAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedOpenAICompatibleKey = config.openAICompatibleAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedKieKey = config.kieAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveGeminiKey = config.geminiEnabled ? trimmedGeminiKey : ""
+        let effectiveOpenAIKey = config.openAIEnabled ? trimmedOpenAIKey : ""
+        let effectiveOpenAICompatibleKey = config.openAICompatibleEnabled ? trimmedOpenAICompatibleKey : ""
+        let effectiveKieKey = config.kieEnabled ? trimmedKieKey : ""
+        let openAICompatibleCacheKey = openAICompatibleCatalogCacheKey()
+        let kieImageModels = effectiveKieKey.isEmpty ? [] : KieModelRegistry.catalogItems
+        let kieTextModels = effectiveKieKey.isEmpty ? [] : KieTextModelRegistry.catalogItems
+
+        guard !(effectiveGeminiKey.isEmpty &&
+                effectiveOpenAIKey.isEmpty &&
+                effectiveOpenAICompatibleKey.isEmpty &&
+                effectiveKieKey.isEmpty) else {
             modelCatalogErrorMessage = trigger == .manual ? localized(AppError.missingAPIKey.localizationKey) : nil
             availableImageModels = []
             availableTextModels = []
@@ -1218,8 +1870,19 @@ final class MainViewModel: ObservableObject {
             return
         }
 
-        if trigger != .manual, let cached = modelCatalogCache[trimmedAPIKey] {
-            applyModelCatalogs(from: cached)
+        if trigger != .manual,
+           let cachedCatalogs = cachedModelCatalogs(
+            geminiKey: effectiveGeminiKey,
+            openAIKey: effectiveOpenAIKey,
+            openAICompatibleKey: effectiveOpenAICompatibleKey.isEmpty ? "" : openAICompatibleCacheKey
+           ) {
+            applyModelCatalogs(
+                geminiModels: cachedCatalogs.gemini,
+                openAIModels: cachedCatalogs.openAI,
+                openAICompatibleModels: cachedCatalogs.openAICompatible,
+                kieImageModels: kieImageModels,
+                kieTextModels: kieTextModels
+            )
             return
         }
 
@@ -1230,23 +1893,67 @@ final class MainViewModel: ObservableObject {
         do {
             let primaryRoute = try resolvePrimaryRoute()
 
-            let models: [ModelCatalogItem]
-            if primaryRoute == .proxy {
-                do {
-                    models = try await fetchModelCatalog(apiKey: trimmedAPIKey, route: .proxy)
-                } catch let proxyError as AppError where proxyError.isRecoverableProxyFailure {
-                    guard config.allowDirectFallback else {
-                        throw AppError.directFallbackDisabled(proxyError.debugDetails)
-                    }
+            var geminiModels: [ModelCatalogItem] = []
+            var openAIModels: [ModelCatalogItem] = []
+            var openAICompatibleModels: [ModelCatalogItem] = []
+            var providerErrors: [String] = []
 
-                    models = try await fetchModelCatalog(apiKey: trimmedAPIKey, route: .directFallback)
+            if !effectiveGeminiKey.isEmpty {
+                do {
+                    geminiModels = try await fetchGeminiModelCatalog(
+                        apiKey: effectiveGeminiKey,
+                        primaryRoute: primaryRoute
+                    )
+                    geminiModelCatalogCache[effectiveGeminiKey] = geminiModels
+                } catch let appError as AppError {
+                    providerErrors.append("Gemini: \(userMessage(for: appError))")
+                } catch {
+                    providerErrors.append("Gemini: \(userMessage(for: .modelCatalogUnavailable(error.localizedDescription)))")
                 }
-            } else {
-                models = try await fetchModelCatalog(apiKey: trimmedAPIKey, route: primaryRoute)
             }
 
-            modelCatalogCache[trimmedAPIKey] = models
-            applyModelCatalogs(from: models)
+            if !effectiveOpenAIKey.isEmpty {
+                do {
+                    openAIModels = try await fetchOpenAIModelCatalog(
+                        apiKey: effectiveOpenAIKey,
+                        primaryRoute: primaryRoute
+                    )
+                    openAIModelCatalogCache[effectiveOpenAIKey] = openAIModels
+                } catch let appError as AppError {
+                    providerErrors.append("OpenAI: \(userMessage(for: appError))")
+                } catch {
+                    providerErrors.append("OpenAI: \(userMessage(for: .modelCatalogUnavailable(error.localizedDescription)))")
+                }
+            }
+
+            if !effectiveOpenAICompatibleKey.isEmpty {
+                do {
+                    openAICompatibleModels = try await fetchOpenAICompatibleModelCatalog(
+                        apiKey: effectiveOpenAICompatibleKey,
+                        primaryRoute: primaryRoute
+                    )
+                    openAICompatibleModelCatalogCache[openAICompatibleCacheKey] = openAICompatibleModels
+                } catch let appError as AppError {
+                    providerErrors.append("OpenAI-compatible: \(userMessage(for: appError))")
+                } catch {
+                    providerErrors.append("OpenAI-compatible: \(userMessage(for: .modelCatalogUnavailable(error.localizedDescription)))")
+                }
+            }
+
+            applyModelCatalogs(
+                geminiModels: geminiModels,
+                openAIModels: openAIModels,
+                openAICompatibleModels: openAICompatibleModels,
+                kieImageModels: kieImageModels,
+                kieTextModels: kieTextModels
+            )
+            if availableImageModels.isEmpty {
+                modelCatalogErrorMessage = providerErrors.isEmpty
+                    ? userMessage(for: .noImageReadyModels)
+                    : providerErrors.joined(separator: "\n")
+            } else {
+                modelCatalogErrorMessage = nil
+            }
         } catch let appError as AppError {
             applyModelCatalog([])
             applyTextModelCatalog([])
@@ -1259,8 +1966,22 @@ final class MainViewModel: ObservableObject {
     }
 
     private func checkAPIAvailabilityAsync() async {
-        let trimmedAPIKey = config.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedAPIKey.isEmpty else {
+        let trimmedGeminiKey = config.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedOpenAIKey = config.openAIAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedOpenAICompatibleKey = config.openAICompatibleAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedKieKey = config.kieAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveGeminiKey = config.geminiEnabled ? trimmedGeminiKey : ""
+        let effectiveOpenAIKey = config.openAIEnabled ? trimmedOpenAIKey : ""
+        let effectiveOpenAICompatibleKey = config.openAICompatibleEnabled ? trimmedOpenAICompatibleKey : ""
+        let effectiveKieKey = config.kieEnabled ? trimmedKieKey : ""
+        let openAICompatibleCacheKey = openAICompatibleCatalogCacheKey()
+        let kieImageModels = effectiveKieKey.isEmpty ? [] : KieModelRegistry.catalogItems
+        let kieTextModels = effectiveKieKey.isEmpty ? [] : KieTextModelRegistry.catalogItems
+
+        guard !(effectiveGeminiKey.isEmpty &&
+                effectiveOpenAIKey.isEmpty &&
+                effectiveOpenAICompatibleKey.isEmpty &&
+                effectiveKieKey.isEmpty) else {
             apiAvailabilityMessage = localized(AppError.missingAPIKey.localizationKey)
             apiAvailabilityMessageIsError = true
             return
@@ -1287,45 +2008,100 @@ final class MainViewModel: ObservableObject {
         do {
             let primaryRoute = try resolvePrimaryRoute()
 
-            let models: [ModelCatalogItem]
-            let usedFallback: Bool
-            if primaryRoute == .proxy {
+            var geminiModels: [ModelCatalogItem] = []
+            var openAIModels: [ModelCatalogItem] = []
+            var openAICompatibleModels: [ModelCatalogItem] = []
+            var messages: [String] = []
+            var hadError = false
+
+            if !effectiveGeminiKey.isEmpty {
                 do {
-                    models = try await fetchModelCatalog(apiKey: trimmedAPIKey, route: .proxy)
-                    usedFallback = false
-                } catch let proxyError as AppError where proxyError.isRecoverableProxyFailure {
-                    guard config.allowDirectFallback else {
-                        throw AppError.directFallbackDisabled(proxyError.debugDetails)
-                    }
-
-                    models = try await fetchModelCatalog(apiKey: trimmedAPIKey, route: .directFallback)
-                    usedFallback = true
+                    geminiModels = try await fetchGeminiModelCatalog(
+                        apiKey: effectiveGeminiKey,
+                        primaryRoute: primaryRoute
+                    )
+                    geminiModelCatalogCache[effectiveGeminiKey] = geminiModels
+                    messages.append(
+                        "Gemini: " + localized(
+                            "settings.api_check_success",
+                            GeminiModelCatalogClient.filterImageReadyModels(from: geminiModels).count,
+                            GeminiModelCatalogClient.filterTextReadyModels(from: geminiModels).count
+                        )
+                    )
+                } catch let appError as AppError {
+                    messages.append("Gemini: \(displayMessage(for: appError))")
+                    hadError = true
+                } catch {
+                    messages.append("Gemini: \(userMessage(for: .modelCatalogUnavailable(error.localizedDescription)))")
+                    hadError = true
                 }
-            } else {
-                models = try await fetchModelCatalog(apiKey: trimmedAPIKey, route: primaryRoute)
-                usedFallback = false
             }
 
-            modelCatalogCache[trimmedAPIKey] = models
-            applyModelCatalogs(from: models)
-
-            let imageReadyCount = GeminiModelCatalogClient.filterImageReadyModels(from: models).count
-            let textReadyCount = GeminiModelCatalogClient.filterTextReadyModels(from: models).count
-
-            if usedFallback {
-                apiAvailabilityMessage = localized(
-                    "settings.api_check_success_fallback",
-                    imageReadyCount,
-                    textReadyCount
-                )
-            } else {
-                apiAvailabilityMessage = localized(
-                    "settings.api_check_success",
-                    imageReadyCount,
-                    textReadyCount
-                )
+            if !effectiveOpenAIKey.isEmpty {
+                do {
+                    openAIModels = try await fetchOpenAIModelCatalog(
+                        apiKey: effectiveOpenAIKey,
+                        primaryRoute: primaryRoute
+                    )
+                    openAIModelCatalogCache[effectiveOpenAIKey] = openAIModels
+                    let openAICount = OpenAIModelCatalogClient.filterImageReadyModels(from: openAIModels).count
+                    let openAITextCount = OpenAIModelCatalogClient.filterTextReadyModels(from: openAIModels).count
+                    if config.language == .ru {
+                        messages.append("OpenAI: моделей для изображений \(openAICount), текстовых \(openAITextCount).")
+                    } else {
+                        messages.append("OpenAI: image models \(openAICount), text models \(openAITextCount).")
+                    }
+                } catch let appError as AppError {
+                    messages.append("OpenAI: \(displayMessage(for: appError))")
+                    hadError = true
+                } catch {
+                    messages.append("OpenAI: \(userMessage(for: .modelCatalogUnavailable(error.localizedDescription)))")
+                    hadError = true
+                }
             }
-            apiAvailabilityMessageIsError = false
+
+            if !effectiveOpenAICompatibleKey.isEmpty {
+                do {
+                    openAICompatibleModels = try await fetchOpenAICompatibleModelCatalog(
+                        apiKey: effectiveOpenAICompatibleKey,
+                        primaryRoute: primaryRoute
+                    )
+                    openAICompatibleModelCatalogCache[openAICompatibleCacheKey] = openAICompatibleModels
+                    let imageCount = OpenAIModelCatalogClient.filterImageReadyModels(from: openAICompatibleModels).count
+                    let textCount = OpenAIModelCatalogClient.filterTextReadyModels(from: openAICompatibleModels).count
+                    messages.append("OpenAI-compatible: image models \(imageCount), text models \(textCount).")
+                } catch let appError as AppError {
+                    messages.append("OpenAI-compatible: \(displayMessage(for: appError))")
+                    hadError = true
+                } catch {
+                    messages.append("OpenAI-compatible: \(userMessage(for: .modelCatalogUnavailable(error.localizedDescription)))")
+                    hadError = true
+                }
+            }
+
+            if !effectiveKieKey.isEmpty {
+                let generationCount = KieModelRegistry.specs.filter { $0.kind == .textToImage || $0.kind == .imageToImage }.count
+                let utilityCount = KieModelRegistry.specs.filter { $0.kind == .upscale || $0.kind == .removeBackground }.count
+                let textCount = KieTextModelRegistry.specs.count
+                if config.language == .ru {
+                    messages.append("Kie.ai: моделей генерации \(generationCount), текстовых \(textCount), утилит \(utilityCount).")
+                } else {
+                    messages.append("Kie.ai: generation models \(generationCount), text models \(textCount), utility models \(utilityCount).")
+                }
+            }
+
+            applyModelCatalogs(
+                geminiModels: geminiModels,
+                openAIModels: openAIModels,
+                openAICompatibleModels: openAICompatibleModels,
+                kieImageModels: kieImageModels,
+                kieTextModels: kieTextModels
+            )
+            if !effectiveKieKey.isEmpty {
+                await refreshKieBalanceAsync()
+            }
+            apiAvailabilityMessage = messages.joined(separator: " ")
+            apiAvailabilityMessageIsError = hadError
         } catch let appError as AppError {
             apiAvailabilityMessage = displayMessage(for: appError)
             apiAvailabilityMessageIsError = true
@@ -1335,14 +2111,104 @@ final class MainViewModel: ObservableObject {
         }
     }
 
-    private func fetchModelCatalog(apiKey: String, route: NetworkRoute) async throws -> [ModelCatalogItem] {
-        let session = try networkClientProvider.makeSession(config: config, route: route)
-        return try await modelCatalogClient.fetchModels(
-            apiKey: apiKey,
-            timeoutSec: config.requestTimeoutSec,
-            session: session,
-            route: route
-        )
+    private func fetchGeminiModelCatalog(apiKey: String, primaryRoute: NetworkRoute) async throws -> [ModelCatalogItem] {
+        try await fetchModelCatalogWithFallback(primaryRoute: primaryRoute) { route in
+            let session = try networkClientProvider.makeSession(config: config, route: route)
+            return try await modelCatalogClient.fetchModels(
+                apiKey: apiKey,
+                timeoutSec: config.requestTimeoutSec,
+                session: session,
+                route: route
+            )
+        }
+    }
+
+    private func fetchOpenAIModelCatalog(apiKey: String, primaryRoute: NetworkRoute) async throws -> [ModelCatalogItem] {
+        try await fetchModelCatalogWithFallback(primaryRoute: primaryRoute) { route in
+            let session = try networkClientProvider.makeSession(config: config, route: route)
+            return try await openAIModelCatalogClient.fetchModels(
+                apiKey: apiKey,
+                timeoutSec: config.requestTimeoutSec,
+                session: session,
+                route: route
+            )
+        }
+    }
+
+    private func fetchOpenAICompatibleModelCatalog(apiKey: String, primaryRoute: NetworkRoute) async throws -> [ModelCatalogItem] {
+        let baseURL = try openAICompatibleBaseURL()
+        return try await fetchModelCatalogWithFallback(primaryRoute: primaryRoute) { route in
+            let session = try networkClientProvider.makeSession(config: config, route: route)
+            return try await OpenAIModelCatalogClient(baseURL: baseURL, provider: .openAICompatible)
+                .fetchModels(
+                    apiKey: apiKey,
+                    timeoutSec: config.requestTimeoutSec,
+                    session: session,
+                    route: route
+                )
+        }
+    }
+
+    private func fetchModelCatalogWithFallback(
+        primaryRoute: NetworkRoute,
+        fetcher: (NetworkRoute) async throws -> [ModelCatalogItem]
+    ) async throws -> [ModelCatalogItem] {
+        if primaryRoute == .proxy {
+            do {
+                return try await fetcher(.proxy)
+            } catch let proxyError as AppError where proxyError.isRecoverableProxyFailure {
+                guard config.allowDirectFallback else {
+                    throw AppError.directFallbackDisabled(proxyError.debugDetails)
+                }
+                return try await fetcher(.directFallback)
+            }
+        }
+
+        return try await fetcher(primaryRoute)
+    }
+
+    private func cachedModelCatalogs(
+        geminiKey: String,
+        openAIKey: String,
+        openAICompatibleKey: String
+    ) -> (gemini: [ModelCatalogItem], openAI: [ModelCatalogItem], openAICompatible: [ModelCatalogItem])? {
+        let cachedGemini: [ModelCatalogItem]
+        if geminiKey.isEmpty {
+            cachedGemini = []
+        } else if let value = geminiModelCatalogCache[geminiKey] {
+            cachedGemini = value
+        } else {
+            return nil
+        }
+
+        let cachedOpenAI: [ModelCatalogItem]
+        if openAIKey.isEmpty {
+            cachedOpenAI = []
+        } else if let value = openAIModelCatalogCache[openAIKey] {
+            cachedOpenAI = value
+        } else {
+            return nil
+        }
+
+        let cachedOpenAICompatible: [ModelCatalogItem]
+        if openAICompatibleKey.isEmpty {
+            cachedOpenAICompatible = []
+        } else if let value = openAICompatibleModelCatalogCache[openAICompatibleKey] {
+            cachedOpenAICompatible = value
+        } else {
+            return nil
+        }
+
+        return (cachedGemini, cachedOpenAI, cachedOpenAICompatible)
+    }
+
+    private func openAICompatibleCatalogCacheKey() -> String {
+        let key = config.openAICompatibleAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else {
+            return ""
+        }
+        let baseURL = normalizedOpenAICompatibleBaseURLString(config.openAICompatibleBaseURL)
+        return "\(baseURL)|\(key)"
     }
 
     private func appendHistory(_ record: HistoryRecord) {
@@ -1352,8 +2218,12 @@ final class MainViewModel: ObservableObject {
         } catch {
             print("[NanoBananaDesktop] Failed to persist history: \(error.localizedDescription)")
             history.insert(record, at: 0)
-            history = Array(history.prefix(20))
+            history.sort { $0.timestamp > $1.timestamp }
         }
+    }
+
+    func appendExternalHistory(_ record: HistoryRecord) {
+        appendHistory(record)
     }
 
     private func setError(_ error: AppError) {
@@ -1549,19 +2419,42 @@ final class MainViewModel: ObservableObject {
         return ImageAspectRatio.closest(forWidth: width, height: height)
     }
 
-    private func applyModelCatalogs(from models: [ModelCatalogItem]) {
-        let imageModels = GeminiModelCatalogClient.filterImageReadyModels(from: models)
-        let textModels = GeminiModelCatalogClient.filterTextReadyModels(from: models)
+    private func applyModelCatalogs(
+        geminiModels: [ModelCatalogItem],
+        openAIModels: [ModelCatalogItem],
+        openAICompatibleModels: [ModelCatalogItem],
+        kieImageModels: [ModelCatalogItem] = [],
+        kieTextModels: [ModelCatalogItem] = []
+    ) {
+        let imageModels = GeminiModelCatalogClient.filterImageReadyModels(from: geminiModels)
+            + OpenAIModelCatalogClient.filterImageReadyModels(from: openAIModels)
+            + OpenAIModelCatalogClient.filterImageReadyModels(from: openAICompatibleModels)
+            + kieImageModels
+        let textModels = GeminiModelCatalogClient.filterTextReadyModels(from: geminiModels)
+            + OpenAIModelCatalogClient.filterTextReadyModels(from: openAIModels)
+            + OpenAIModelCatalogClient.filterTextReadyModels(from: openAICompatibleModels)
+            + kieTextModels
 
         applyModelCatalog(imageModels)
         applyTextModelCatalog(textModels)
+        switchSelectedModelsToAvailableFallbackIfNeeded()
 
         if imageModels.isEmpty {
             modelCatalogErrorMessage = userMessage(for: .noImageReadyModels)
-        } else if textModels.isEmpty {
-            modelCatalogErrorMessage = userMessage(for: .noTextReadyModels)
         } else {
             modelCatalogErrorMessage = nil
+        }
+    }
+
+    private func switchSelectedModelsToAvailableFallbackIfNeeded() {
+        if !availableImageModels.isEmpty,
+           !availableImageModels.contains(where: { $0.name == config.model }) {
+            config.model = availableImageModels[0].name
+        }
+
+        if !availableTextModels.isEmpty,
+           !availableTextModels.contains(where: { $0.name == config.promptEnhancementModel }) {
+            config.promptEnhancementModel = availableTextModels[0].name
         }
     }
 
@@ -1575,6 +2468,18 @@ final class MainViewModel: ObservableObject {
                 return lhsIsSelected
             }
 
+            if lhs.provider != rhs.provider {
+                return lhs.provider.rawValue < rhs.provider.rawValue
+            }
+
+            if lhs.provider == .openAI || lhs.provider == .openAICompatible {
+                let lhsPriority = openAIImageSortPriority(for: lhs.name)
+                let rhsPriority = openAIImageSortPriority(for: rhs.name)
+                if lhsPriority != rhsPriority {
+                    return lhsPriority < rhsPriority
+                }
+            }
+
             let lhsDisplay = lhs.displayName.isEmpty ? lhs.name : lhs.displayName
             let rhsDisplay = rhs.displayName.isEmpty ? rhs.name : rhs.displayName
             let displayCompare = lhsDisplay.localizedCaseInsensitiveCompare(rhsDisplay)
@@ -1586,7 +2491,38 @@ final class MainViewModel: ObservableObject {
         }
     }
 
-    private func mergedModelCatalog(models: [ModelCatalogItem], with selectedModel: String) -> [ModelCatalogItem] {
+    private func openAIImageSortPriority(for modelName: String) -> Int {
+        let normalized = ModelProvider.apiModelName(from: modelName).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalized == "gpt-image-2" {
+            return 0
+        }
+        if normalized.hasPrefix("gpt-image-") {
+            return 1
+        }
+        return 2
+    }
+
+    private func mergedImageModelCatalog(models: [ModelCatalogItem], with selectedModel: String) -> [ModelCatalogItem] {
+        mergedModelCatalog(
+            models: models,
+            selectedModel: selectedModel,
+            providerResolver: ModelProvider.inferImageProvider(from:)
+        )
+    }
+
+    private func mergedTextModelCatalog(models: [ModelCatalogItem], with selectedModel: String) -> [ModelCatalogItem] {
+        mergedModelCatalog(
+            models: models,
+            selectedModel: selectedModel,
+            providerResolver: ModelProvider.inferTextProvider(from:)
+        )
+    }
+
+    private func mergedModelCatalog(
+        models: [ModelCatalogItem],
+        selectedModel: String,
+        providerResolver: (String) -> ModelProvider
+    ) -> [ModelCatalogItem] {
         let trimmedSelectedModel = selectedModel.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedSelectedModel.isEmpty else {
             return models
@@ -1603,8 +2539,13 @@ final class MainViewModel: ObservableObject {
             return reordered
         }
 
+        let selectedProvider = providerResolver(trimmedSelectedModel)
+        guard isProviderEnabled(selectedProvider) else {
+            return models
+        }
+
         var merged = models
-        merged.insert(.custom(trimmedSelectedModel), at: 0)
+        merged.insert(.custom(trimmedSelectedModel, provider: selectedProvider), at: 0)
         return merged
     }
 

@@ -23,6 +23,9 @@ struct HistoryRecord: Codable, Identifiable {
     let proxyUsed: Bool
     let fallbackUsed: Bool
     let proxySummary: String?
+    let sourceMode: HistorySourceMode
+    let conceptProjectID: UUID?
+    let conceptLayerIDs: [UUID]?
 
     init(
         id: UUID = UUID(),
@@ -40,7 +43,10 @@ struct HistoryRecord: Codable, Identifiable {
         networkRoute: NetworkRoute = .proxy,
         proxyUsed: Bool = true,
         fallbackUsed: Bool = false,
-        proxySummary: String? = nil
+        proxySummary: String? = nil,
+        sourceMode: HistorySourceMode = .create,
+        conceptProjectID: UUID? = nil,
+        conceptLayerIDs: [UUID]? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -58,6 +64,9 @@ struct HistoryRecord: Codable, Identifiable {
         self.proxyUsed = proxyUsed
         self.fallbackUsed = fallbackUsed
         self.proxySummary = proxySummary
+        self.sourceMode = sourceMode
+        self.conceptProjectID = conceptProjectID
+        self.conceptLayerIDs = conceptLayerIDs
     }
 
     enum CodingKeys: String, CodingKey {
@@ -78,6 +87,9 @@ struct HistoryRecord: Codable, Identifiable {
         case proxyUsed
         case fallbackUsed
         case proxySummary
+        case sourceMode
+        case conceptProjectID
+        case conceptLayerIDs
     }
 
     init(from decoder: Decoder) throws {
@@ -107,6 +119,9 @@ struct HistoryRecord: Codable, Identifiable {
         proxyUsed = try container.decodeIfPresent(Bool.self, forKey: .proxyUsed) ?? true
         fallbackUsed = try container.decodeIfPresent(Bool.self, forKey: .fallbackUsed) ?? false
         proxySummary = try container.decodeIfPresent(String.self, forKey: .proxySummary)
+        sourceMode = try container.decodeIfPresent(HistorySourceMode.self, forKey: .sourceMode) ?? .create
+        conceptProjectID = try container.decodeIfPresent(UUID.self, forKey: .conceptProjectID)
+        conceptLayerIDs = try container.decodeIfPresent([UUID].self, forKey: .conceptLayerIDs)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -127,7 +142,15 @@ struct HistoryRecord: Codable, Identifiable {
         try container.encode(proxyUsed, forKey: .proxyUsed)
         try container.encode(fallbackUsed, forKey: .fallbackUsed)
         try container.encodeIfPresent(proxySummary, forKey: .proxySummary)
+        try container.encode(sourceMode, forKey: .sourceMode)
+        try container.encodeIfPresent(conceptProjectID, forKey: .conceptProjectID)
+        try container.encodeIfPresent(conceptLayerIDs, forKey: .conceptLayerIDs)
     }
+}
+
+enum HistorySourceMode: String, Codable, CaseIterable {
+    case create
+    case concepting
 }
 
 enum HistoryFilter: String, CaseIterable, Identifiable {

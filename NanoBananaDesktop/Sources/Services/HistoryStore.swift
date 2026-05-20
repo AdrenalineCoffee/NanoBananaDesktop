@@ -3,14 +3,18 @@ import Foundation
 final class HistoryStore {
     private let historyURL: URL
     private let fileManager: FileManager
-    private let maxRecords: Int
+    private let maxRecords: Int?
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
-    init(historyURL: URL? = nil, fileManager: FileManager = .default, maxRecords: Int = 20) throws {
+    init(historyURL: URL? = nil, fileManager: FileManager = .default, maxRecords: Int? = nil) throws {
         self.fileManager = fileManager
         self.historyURL = try historyURL ?? AppDirectories.historyFileURL(fileManager: fileManager)
-        self.maxRecords = maxRecords
+        if let maxRecords, maxRecords > 0 {
+            self.maxRecords = maxRecords
+        } else {
+            self.maxRecords = nil
+        }
 
         self.decoder = JSONDecoder()
         self.decoder.dateDecodingStrategy = .iso8601
@@ -53,6 +57,9 @@ final class HistoryStore {
 
     private func normalized(_ records: [HistoryRecord]) -> [HistoryRecord] {
         let sorted = records.sorted { $0.timestamp > $1.timestamp }
+        guard let maxRecords else {
+            return sorted
+        }
         return Array(sorted.prefix(maxRecords))
     }
 

@@ -62,9 +62,22 @@ final class MockURLProtocol: URLProtocol {
     private static func apiKey(from request: URLRequest) -> String? {
         guard let url = request.url,
               let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return authorizationKey(from: request)
+        }
+
+        if let queryKey = components.queryItems?.first(where: { $0.name == "key" })?.value {
+            return queryKey
+        }
+
+        return authorizationKey(from: request)
+    }
+
+    private static func authorizationKey(from request: URLRequest) -> String? {
+        guard let authorization = request.value(forHTTPHeaderField: "Authorization"),
+              authorization.lowercased().hasPrefix("bearer ") else {
             return nil
         }
 
-        return components.queryItems?.first(where: { $0.name == "key" })?.value
+        return String(authorization.dropFirst("Bearer ".count))
     }
 }

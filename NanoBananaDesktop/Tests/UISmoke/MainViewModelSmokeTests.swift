@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import NanoBananaDesktop
@@ -93,6 +94,44 @@ func generateFlowSucceedsWithoutProxyWhenProxyIsDisabled() async throws {
     #expect(historyItems.first?.proxyUsed == false)
 
     MockURLProtocol.removeHandler(forAPIKey: apiKey)
+}
+
+@Test
+func generateFlowUsesOpenAIImageEndpointWhenOpenAIModelIsSelected() async throws {
+    let openAIAPIKey = "sk-openai-smoke"
+    let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+
+    let configStore = try AppConfigStore(configURL: tempDirectory.appendingPathComponent("config.json"))
+    let historyStore = try HistoryStore(historyURL: tempDirectory.appendingPathComponent("history.json"))
+    let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])
+
+    setOpenAIImageGenerationHandler(forAPIKey: openAIAPIKey, imageBase64: tinyPNGBase64)
+
+    let viewModel = await MainActor.run {
+        MainViewModel(
+            configStore: configStore,
+            historyStore: historyStore,
+            networkClientProvider: networkProvider
+        )
+    }
+
+    await MainActor.run {
+        viewModel.config.openAIAPIKey = openAIAPIKey
+        viewModel.config.model = "gpt-image-2"
+        viewModel.config.defaultOutputDir = tempDirectory.path
+        viewModel.prompt = "A robot in city"
+        viewModel.generate()
+    }
+
+    try await waitForGenerationToComplete(viewModel: viewModel)
+
+    let outputPath = await MainActor.run { viewModel.lastOutputPath }
+    #expect(outputPath != nil)
+    #expect(FileManager.default.fileExists(atPath: outputPath ?? ""))
+
+    MockURLProtocol.removeHandler(forAPIKey: openAIAPIKey)
 }
 
 @Test
@@ -204,6 +243,82 @@ func generateFlowWithImageCountThreeCreatesThreeOutputsAndHistoryEntries() async
     let historyItems = await MainActor.run { viewModel.history }
     #expect(historyItems.count == 3)
     #expect(historyItems.allSatisfy { $0.status == .success })
+
+    MockURLProtocol.removeHandler(forAPIKey: apiKey)
+}
+
+@Test
+func generateFlowKeepsPreviousPreviewUntilNewImageArrives() async throws {
+    let apiKey = "key-keep-preview"
+    let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+
+    let oldOutput = tempDirectory.appendingPathComponent("old.png")
+    try tinyPNGData.write(to: oldOutput)
+
+    let configStore = try AppConfigStore(configURL: tempDirectory.appendingPathComponent("config.json"))
+    let historyStore = try HistoryStore(historyURL: tempDirectory.appendingPathComponent("history.json"))
+    let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])
+
+    MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
+        Thread.sleep(forTimeInterval: 0.25)
+        let url = try #require(request.url)
+        #expect(url.path.contains(":generateContent") == true)
+        let json: [String: Any] = [
+            "candidates": [[
+                "content": [
+                    "parts": [
+                        ["text": "single-image"],
+                        ["inlineData": ["mimeType": "image/png", "data": tinyPNGBase64Alt]]
+                    ]
+                ]
+            ]]
+        ]
+        let responseData = try JSONSerialization.data(withJSONObject: json)
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (response, responseData)
+    }
+
+    let viewModel = await MainActor.run {
+        MainViewModel(
+            configStore: configStore,
+            historyStore: historyStore,
+            networkClientProvider: networkProvider
+        )
+    }
+
+    await MainActor.run {
+        viewModel.config.apiKey = apiKey
+        viewModel.config.defaultOutputDir = tempDirectory.path
+        viewModel.config.proxyEnabled = true
+        viewModel.config.proxyHost = "proxy.local"
+        viewModel.config.proxyPort = 8080
+        if let image = NSImage(data: tinyPNGData) {
+            viewModel.lastGeneratedImages = [image]
+            viewModel.lastGeneratedImage = image
+        }
+        viewModel.lastOutputPaths = [oldOutput.path]
+        viewModel.lastOutputPath = oldOutput.path
+        viewModel.prompt = "new prompt"
+        viewModel.generate()
+    }
+
+    let previewDuringGeneration = await MainActor.run { viewModel.lastGeneratedImages.count }
+    let outputDuringGeneration = await MainActor.run { viewModel.lastOutputPath }
+    #expect(previewDuringGeneration == 1)
+    #expect(outputDuringGeneration == oldOutput.path)
+
+    try await waitForGenerationToComplete(viewModel: viewModel)
+
+    let outputAfterCompletion = await MainActor.run { viewModel.lastOutputPath }
+    #expect(outputAfterCompletion != nil)
+    #expect(outputAfterCompletion != oldOutput.path)
 
     MockURLProtocol.removeHandler(forAPIKey: apiKey)
 }
@@ -782,6 +897,68 @@ func enhancePromptReplacesPromptWithModelResponse() async throws {
 }
 
 @Test
+func enhancePromptUsesOpenAIResponsesEndpointForGPTModel() async throws {
+    let openAIKey = "sk-openai-enhance"
+    let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])
+    let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+    let configStore = try AppConfigStore(configURL: tempDirectory.appendingPathComponent("config.json"))
+    let historyStore = try HistoryStore(historyURL: tempDirectory.appendingPathComponent("history.json"))
+    let viewModel = await MainActor.run {
+        MainViewModel(
+            configStore: configStore,
+            historyStore: historyStore,
+            networkClientProvider: networkProvider
+        )
+    }
+
+    MockURLProtocol.setHandler(forAPIKey: openAIKey) { request in
+        let url = try #require(request.url)
+        #expect(url.path == "/v1/responses")
+
+        let body = try #require(requestBody(from: request))
+        let payload = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(payload["model"] as? String == "gpt-5.4")
+
+        let input = try #require(payload["input"] as? [[String: Any]])
+        let firstInput = try #require(input.first)
+        let content = try #require(firstInput["content"] as? [[String: Any]])
+        #expect(content.count == 1)
+        #expect(content.first?["type"] as? String == "input_text")
+        #expect(content.first?["text"] as? String == "Improve prompt\n\nold prompt")
+
+        let responseJSON: [String: Any] = ["output_text": "OpenAI improved prompt"]
+        let responseData = try JSONSerialization.data(withJSONObject: responseJSON)
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (response, responseData)
+    }
+
+    await MainActor.run {
+        viewModel.config.openAIAPIKey = openAIKey
+        viewModel.config.proxyEnabled = true
+        viewModel.config.proxyHost = "proxy.local"
+        viewModel.config.proxyPort = 8080
+        viewModel.config.promptEnhancementModel = "gpt-5.4"
+        viewModel.config.promptEnhancementInstruction = "Improve prompt"
+        viewModel.prompt = "old prompt"
+        viewModel.enhancePrompt()
+    }
+
+    try await waitForPromptEnhancementComplete(viewModel: viewModel)
+
+    let prompt = await MainActor.run { viewModel.prompt }
+    #expect(prompt == "OpenAI improved prompt")
+
+    MockURLProtocol.removeHandler(forAPIKey: openAIKey)
+}
+
+@Test
 func enhancePromptFailsWhenPromptIsEmpty() async throws {
     let viewModel = try await makeIsolatedViewModel()
 
@@ -793,6 +970,23 @@ func enhancePromptFailsWhenPromptIsEmpty() async throws {
 
     let errorMessage = await MainActor.run { viewModel.errorMessage }
     #expect(errorMessage != nil)
+}
+
+@Test
+func enhancePromptShowsOpenAIKeyErrorWhenGPTModelSelectedWithoutOpenAIKey() async throws {
+    let viewModel = try await makeIsolatedViewModel()
+
+    await MainActor.run {
+        viewModel.config.apiKey = "gemini-key-present"
+        viewModel.config.openAIAPIKey = "   "
+        viewModel.config.promptEnhancementModel = "gpt-5.4"
+        viewModel.prompt = "Prompt body"
+        viewModel.enhancePrompt()
+    }
+
+    let errorMessage = await MainActor.run { viewModel.errorMessage ?? "" }
+    let expected = await MainActor.run { viewModel.localized(AppError.missingOpenAIAPIKey.localizationKey) }
+    #expect(errorMessage == expected)
 }
 
 @Test
@@ -976,6 +1170,76 @@ func generatePromptFromImageHappyPathReplacesPromptAndTogglesProgressState() asy
     #expect(successMessage != nil)
 
     MockURLProtocol.removeHandler(forAPIKey: apiKey)
+}
+
+@Test
+func generatePromptFromImageUsesOpenAIResponsesEndpointWithInputImage() async throws {
+    let openAIKey = "sk-openai-prompt-from-image"
+    let networkProvider = ProxySessionFactory(protocolClasses: [MockURLProtocol.self])
+    let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+    let configStore = try AppConfigStore(configURL: tempDirectory.appendingPathComponent("config.json"))
+    let historyStore = try HistoryStore(historyURL: tempDirectory.appendingPathComponent("history.json"))
+    let imageURL = tempDirectory.appendingPathComponent("source.png")
+    try tinyPNGData.write(to: imageURL)
+
+    let viewModel = await MainActor.run {
+        MainViewModel(
+            configStore: configStore,
+            historyStore: historyStore,
+            networkClientProvider: networkProvider
+        )
+    }
+
+    MockURLProtocol.setHandler(forAPIKey: openAIKey) { request in
+        let url = try #require(request.url)
+        #expect(url.path == "/v1/responses")
+
+        let body = try #require(requestBody(from: request))
+        let payload = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(payload["model"] as? String == "gpt-5.4")
+
+        let input = try #require(payload["input"] as? [[String: Any]])
+        let firstInput = try #require(input.first)
+        let content = try #require(firstInput["content"] as? [[String: Any]])
+        #expect(content.count == 2)
+
+        let imagePart = try #require(content.first(where: { ($0["type"] as? String) == "input_image" }))
+        let imageURLValue = try #require(imagePart["image_url"] as? String)
+        #expect(imageURLValue.hasPrefix("data:image/png;base64,"))
+
+        let textPart = try #require(content.first(where: { ($0["type"] as? String) == "input_text" }))
+        #expect(textPart["text"] as? String == "Build from image")
+
+        let responseJSON: [String: Any] = ["output_text": "Prompt from OpenAI image input"]
+        let responseData = try JSONSerialization.data(withJSONObject: responseJSON)
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (response, responseData)
+    }
+
+    await MainActor.run {
+        viewModel.config.openAIAPIKey = openAIKey
+        viewModel.config.proxyEnabled = true
+        viewModel.config.proxyHost = "proxy.local"
+        viewModel.config.proxyPort = 8080
+        viewModel.config.promptEnhancementModel = "gpt-5.4"
+        viewModel.config.promptFromImageInstruction = "Build from image"
+        viewModel.prompt = "old prompt"
+        viewModel.generatePromptFromImage(from: [imageURL])
+    }
+
+    try await waitForPromptFromImageComplete(viewModel: viewModel)
+
+    let prompt = await MainActor.run { viewModel.prompt }
+    #expect(prompt == "Prompt from OpenAI image input")
+
+    MockURLProtocol.removeHandler(forAPIKey: openAIKey)
 }
 
 @Test
@@ -1240,6 +1504,37 @@ private func setMultiSingleGenerationHandler(
             ]]
         ]
         let responseData = try JSONSerialization.data(withJSONObject: json)
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (response, responseData)
+    }
+}
+
+private func setOpenAIImageGenerationHandler(
+    forAPIKey apiKey: String,
+    imageBase64: String
+) {
+    MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
+        let url = try #require(request.url)
+        #expect(url.path.contains("/v1/images/generations") == true)
+
+        let body = try #require(requestBody(from: request))
+        let json = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(json["model"] as? String == "gpt-image-2")
+        #expect(json["response_format"] == nil)
+        #expect(json["output_format"] as? String == "png")
+
+        let responseJSON: [String: Any] = [
+            "data": [[
+                "b64_json": imageBase64,
+                "revised_prompt": "openai-image"
+            ]]
+        ]
+        let responseData = try JSONSerialization.data(withJSONObject: responseJSON)
         let response = HTTPURLResponse(
             url: url,
             statusCode: 200,

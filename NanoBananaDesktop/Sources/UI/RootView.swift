@@ -3,6 +3,7 @@ import SwiftUI
 
 enum RootSection: String, CaseIterable, Identifiable, Hashable {
     case create
+    case concepting
     case history
     case settings
 
@@ -12,6 +13,8 @@ enum RootSection: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .create:
             return "sparkles"
+        case .concepting:
+            return "paintbrush.pointed"
         case .history:
             return "clock.arrow.circlepath"
         case .settings:
@@ -23,6 +26,8 @@ enum RootSection: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .create:
             return "nav.create"
+        case .concepting:
+            return "nav.concepting"
         case .history:
             return "nav.history"
         case .settings:
@@ -33,6 +38,7 @@ enum RootSection: String, CaseIterable, Identifiable, Hashable {
 
 struct RootView: View {
     @ObservedObject var viewModel: MainViewModel
+    @StateObject private var conceptingViewModel = ConceptingViewModel()
     @State private var selection: RootSection = .create
     @SceneStorage("root.sidebarCollapsed") private var isSidebarCollapsed: Bool = false
     private let sidebarExpandedWidth: CGFloat = 246
@@ -132,6 +138,13 @@ struct RootView: View {
                 ForEach(RootSection.allCases) { section in
                     sidebarRow(for: section)
                 }
+
+                Spacer(minLength: 16)
+
+                if viewModel.shouldShowKieBalance {
+                    kieBalanceBadge
+                        .padding(.bottom, 18)
+                }
             }
             .padding(.horizontal, 14)
             .padding(.top, sidebarMenuTopInset)
@@ -182,11 +195,54 @@ struct RootView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private var kieBalanceBadge: some View {
+        Button {
+            viewModel.refreshKieBalance()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "creditcard")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.blue.opacity(0.9))
+                    .frame(width: 16)
+
+                Text(viewModel.kieBalanceDisplayText)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.82))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.white.opacity(0.08))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help(viewModel.kieBalanceError ?? viewModel.localized("sidebar.kie_balance_refresh"))
+    }
+
     private var detailContainer: some View {
         ZStack {
             MainView(viewModel: viewModel)
                 .opacity(selection == .create ? 1 : 0)
                 .allowsHitTesting(selection == .create)
+
+            ConceptingView(
+                appViewModel: viewModel,
+                viewModel: conceptingViewModel,
+                isVisible: selection == .concepting
+            )
+            .opacity(selection == .concepting ? 1 : 0)
+            .allowsHitTesting(selection == .concepting)
 
             HistoryView(viewModel: viewModel, isVisible: selection == .history) {
                 selection = .create

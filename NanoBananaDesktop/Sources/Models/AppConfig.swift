@@ -65,6 +65,9 @@ C) NEGATIVE PROMPT: 12–20 коротких запретов, релевант�
 REFERENCE_IMAGE: (первое изображение, стиль/сцена/композиция — источник правды)
 USER_NOTES: (опционально — что особенно важно сохранить: цвета, бренд, точность текста, формат)
 """
+    static let legacyDefaultConceptPromptAdditions = "all but this object are painted white"
+    static let defaultConceptPromptAdditions = ", сделай этот объект на белом фоне без теней, будто он вырезан с фотографии"
+    static let defaultGenerationCompletionNotificationsEnabled = true
     static let defaultPromptEnhancementInstruction = """
 Ты — Prompt Refiner для Nano Banana Pro. Твоя задача: прочитать мой ОРИГИНАЛЬНЫЙ ПРОМПТ и переписать его так, чтобы итоговое изображение/кадр(ы) получились максимально качественными, но при этом полностью сохранились: замысел, стиль, настроение, сюжет, ключевые объекты, цвета/бренд (если задано), и любые явные ограничения.
 ВАЖНО: не “улучшай” стиль от себя и не предлагай другой художественный язык. Не добавляй новых персонажей/объектов, если я их не просил. Не меняй эпоху, этничность, возраст, одежду, сеттинг, IP/фандом, если это не указано. Если в моём промпте стиль задан (аниме/реализм/3D/стопмоушн/комикс/фото и т.д.) — усиливай ТОЛЬКО в рамках этого стиля.
@@ -88,11 +91,22 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
     static let legacyDefaultRequestTimeoutSec = 120
     static let defaultRequestTimeoutSec = 180
     static let defaultNetworkPolicyVersion = 1
+    static let defaultOpenAICompatibleBaseURL = "https://www.packyapi.com/v1"
 
     var apiKey: String
+    var openAIAPIKey: String
+    var openAICompatibleAPIKey: String
+    var openAICompatibleBaseURL: String
+    var kieAPIKey: String
+    var geminiEnabled: Bool
+    var openAIEnabled: Bool
+    var openAICompatibleEnabled: Bool
+    var kieEnabled: Bool
     var model: String
     var promptEnhancementModel: String
     var promptFromImageInstruction: String
+    var conceptPromptAdditions: String
+    var generationCompletionNotificationsEnabled: Bool
     var promptEnhancementInstruction: String
     var promptPresets: [PromptPreset]
     var language: AppLanguage
@@ -129,9 +143,19 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
         let outputDirectory = defaultOutputDirectory(currentWorkingDirectory: currentWorkingDirectory, fileManager: fileManager)
         return AppConfig(
             apiKey: "",
+            openAIAPIKey: "",
+            openAICompatibleAPIKey: "",
+            openAICompatibleBaseURL: defaultOpenAICompatibleBaseURL,
+            kieAPIKey: "",
+            geminiEnabled: true,
+            openAIEnabled: true,
+            openAICompatibleEnabled: true,
+            kieEnabled: true,
             model: defaultModel,
             promptEnhancementModel: defaultPromptEnhancementModel,
             promptFromImageInstruction: defaultPromptFromImageInstruction,
+            conceptPromptAdditions: defaultConceptPromptAdditions,
+            generationCompletionNotificationsEnabled: defaultGenerationCompletionNotificationsEnabled,
             promptEnhancementInstruction: defaultPromptEnhancementInstruction,
             promptPresets: [],
             language: .systemDefault(),
@@ -170,9 +194,19 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
 
     enum CodingKeys: String, CodingKey {
         case apiKey
+        case openAIAPIKey
+        case openAICompatibleAPIKey
+        case openAICompatibleBaseURL
+        case kieAPIKey
+        case geminiEnabled
+        case openAIEnabled
+        case openAICompatibleEnabled
+        case kieEnabled
         case model
         case promptEnhancementModel
         case promptFromImageInstruction
+        case conceptPromptAdditions
+        case generationCompletionNotificationsEnabled
         case promptEnhancementInstruction
         case promptPresets
         case language
@@ -191,9 +225,19 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
 
     init(
         apiKey: String,
+        openAIAPIKey: String,
+        openAICompatibleAPIKey: String,
+        openAICompatibleBaseURL: String,
+        kieAPIKey: String,
+        geminiEnabled: Bool,
+        openAIEnabled: Bool,
+        openAICompatibleEnabled: Bool,
+        kieEnabled: Bool,
         model: String,
         promptEnhancementModel: String,
         promptFromImageInstruction: String,
+        conceptPromptAdditions: String,
+        generationCompletionNotificationsEnabled: Bool,
         promptEnhancementInstruction: String,
         promptPresets: [PromptPreset],
         language: AppLanguage,
@@ -210,9 +254,19 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
         networkPolicyVersion: Int
     ) {
         self.apiKey = apiKey
+        self.openAIAPIKey = openAIAPIKey
+        self.openAICompatibleAPIKey = openAICompatibleAPIKey
+        self.openAICompatibleBaseURL = openAICompatibleBaseURL
+        self.kieAPIKey = kieAPIKey
+        self.geminiEnabled = geminiEnabled
+        self.openAIEnabled = openAIEnabled
+        self.openAICompatibleEnabled = openAICompatibleEnabled
+        self.kieEnabled = kieEnabled
         self.model = model
         self.promptEnhancementModel = promptEnhancementModel
         self.promptFromImageInstruction = promptFromImageInstruction
+        self.conceptPromptAdditions = conceptPromptAdditions
+        self.generationCompletionNotificationsEnabled = generationCompletionNotificationsEnabled
         self.promptEnhancementInstruction = promptEnhancementInstruction
         self.promptPresets = promptPresets
         self.language = language
@@ -235,10 +289,24 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
         let defaults = AppConfig.defaultValue()
 
         apiKey = try container.decodeIfPresent(String.self, forKey: .apiKey) ?? defaults.apiKey
+        openAIAPIKey = try container.decodeIfPresent(String.self, forKey: .openAIAPIKey) ?? defaults.openAIAPIKey
+        openAICompatibleAPIKey = try container.decodeIfPresent(String.self, forKey: .openAICompatibleAPIKey)
+            ?? defaults.openAICompatibleAPIKey
+        openAICompatibleBaseURL = try container.decodeIfPresent(String.self, forKey: .openAICompatibleBaseURL)
+            ?? defaults.openAICompatibleBaseURL
+        kieAPIKey = try container.decodeIfPresent(String.self, forKey: .kieAPIKey) ?? defaults.kieAPIKey
+        geminiEnabled = try container.decodeIfPresent(Bool.self, forKey: .geminiEnabled) ?? true
+        openAIEnabled = try container.decodeIfPresent(Bool.self, forKey: .openAIEnabled) ?? true
+        openAICompatibleEnabled = try container.decodeIfPresent(Bool.self, forKey: .openAICompatibleEnabled) ?? true
+        kieEnabled = try container.decodeIfPresent(Bool.self, forKey: .kieEnabled) ?? true
         model = try container.decodeIfPresent(String.self, forKey: .model) ?? defaults.model
         promptEnhancementModel = try container.decodeIfPresent(String.self, forKey: .promptEnhancementModel) ?? defaults.promptEnhancementModel
         promptFromImageInstruction = try container.decodeIfPresent(String.self, forKey: .promptFromImageInstruction)
             ?? defaults.promptFromImageInstruction
+        conceptPromptAdditions = try container.decodeIfPresent(String.self, forKey: .conceptPromptAdditions)
+            ?? defaults.conceptPromptAdditions
+        generationCompletionNotificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .generationCompletionNotificationsEnabled)
+            ?? defaults.generationCompletionNotificationsEnabled
         promptEnhancementInstruction = try container.decodeIfPresent(String.self, forKey: .promptEnhancementInstruction) ?? defaults.promptEnhancementInstruction
         promptPresets = try container.decodeIfPresent([PromptPreset].self, forKey: .promptPresets) ?? defaults.promptPresets
         language = try container.decodeIfPresent(AppLanguage.self, forKey: .language) ?? defaults.language
@@ -271,9 +339,19 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
         var container = encoder.container(keyedBy: CodingKeys.self)
 
         try container.encode(apiKey, forKey: .apiKey)
+        try container.encode(openAIAPIKey, forKey: .openAIAPIKey)
+        try container.encode(openAICompatibleAPIKey, forKey: .openAICompatibleAPIKey)
+        try container.encode(openAICompatibleBaseURL, forKey: .openAICompatibleBaseURL)
+        try container.encode(kieAPIKey, forKey: .kieAPIKey)
+        try container.encode(geminiEnabled, forKey: .geminiEnabled)
+        try container.encode(openAIEnabled, forKey: .openAIEnabled)
+        try container.encode(openAICompatibleEnabled, forKey: .openAICompatibleEnabled)
+        try container.encode(kieEnabled, forKey: .kieEnabled)
         try container.encode(model, forKey: .model)
         try container.encode(promptEnhancementModel, forKey: .promptEnhancementModel)
         try container.encode(promptFromImageInstruction, forKey: .promptFromImageInstruction)
+        try container.encode(conceptPromptAdditions, forKey: .conceptPromptAdditions)
+        try container.encode(generationCompletionNotificationsEnabled, forKey: .generationCompletionNotificationsEnabled)
         try container.encode(promptEnhancementInstruction, forKey: .promptEnhancementInstruction)
         try container.encode(promptPresets, forKey: .promptPresets)
         try container.encode(language, forKey: .language)

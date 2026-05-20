@@ -1,6 +1,7 @@
 "app.title" = "NanoBanana Desktop";
 
 "nav.create" = "Create";
+"nav.concepting" = "Concepting";
 "nav.history" = "History";
 "nav.settings" = "Settings";
 
@@ -48,11 +49,17 @@
 "settings.group.output" = "Output";
 "settings.group.localization" = "Localization";
 "settings.api_key" = "Gemini API key";
+"settings.openai_api_key" = "OpenAI API key";
+"settings.openai_compatible_api_key" = "OpenAI-compatible API key";
+"settings.openai_compatible_base_url" = "OpenAI-compatible Base URL";
+"settings.kie_api_key" = "Kie.ai API key";
+"settings.provider_enabled" = "Enabled";
 "settings.model" = "Model";
 "settings.image_model" = "Image generation model";
 "settings.prompt_model" = "Prompt work model";
 "settings.prompt_from_image_instruction" = "Instruction for generating a prompt from dropped photo";
 "settings.prompt_enhancement_instruction" = "Prompt enhancement template";
+"settings.concept_prompt_additions" = "Concepting prompt additions";
 "settings.model_sync_hint" = "This model is synced with the model picker on the Create screen.";
 "settings.presets_empty" = "No saved presets yet.";
 "settings.preset_meta_format" = "%@ • %@ • %@ • %d";
@@ -72,6 +79,10 @@
 "settings.refresh_models" = "Refresh";
 "settings.api_check" = "Check API availability";
 "settings.api_check_in_progress" = "Checking...";
+"settings.api_check_success_gemini" = "Gemini: image models %d, text models %d.";
+"settings.api_check_success_openai" = "OpenAI: image models %d.";
+"settings.api_check_failure_gemini" = "Gemini: %@";
+"settings.api_check_failure_openai" = "OpenAI: %@";
 "settings.api_check_success" = "API reachable. Image models: %d, text models: %d.";
 "settings.api_check_success_fallback" = "API reachable via direct fallback. Image models: %d, text models: %d.";
 "settings.language" = "Language";
@@ -79,6 +90,7 @@
 "settings.output_dir_placeholder" = "/Users/you/Pictures/NanoBanana_img";
 "settings.output_default_hint" = "Default: ~/Pictures/NanoBanana_img";
 "settings.timeout" = "Request timeout";
+"settings.generation_completion_notifications" = "Notify when generation completes";
 "settings.version_value" = "Version: %@";
 "settings.proxy_enabled" = "Use proxy for network requests";
 "settings.allow_direct_fallback" = "Allow direct fallback if proxy fails";
@@ -126,6 +138,9 @@
 "history.reuse_prompt_only_missing_files" = "Prompt loaded from history. Source files are unavailable: %@";
 "history.output_unavailable" = "Generated output is no longer available at the saved path.";
 "history.thumbnail_alt" = "Result thumbnail";
+"history.page_format" = "Page %d of %d";
+"history.previous_page" = "Previous page";
+"history.next_page" = "Next page";
 
 "route.proxy" = "PROXY";
 "route.direct_fallback" = "DIRECT FALLBACK";
@@ -146,6 +161,9 @@
 "status.prompt_enhanced" = "Prompt updated successfully.";
 "status.prompt_from_image_in_progress" = "Generating prompt from image...";
 "status.prompt_from_image_done" = "Prompt from image is ready.";
+"notification.generation_completed_title" = "Nano Banana Pro";
+"notification.generation_completed_single" = "Image generation is complete.";
+"notification.generation_completed_multiple" = "Generation complete. Images ready: %d.";
 "status.preset_saved" = "Preset \"%@\" saved.";
 "status.preset_applied" = "Preset \"%@\" applied.";
 "status.preset_renamed" = "Preset renamed: %@.";
@@ -156,7 +174,12 @@
 "warning.config_store_unavailable" = "Config store is unavailable, running with in-memory defaults.";
 
 "error.empty_prompt" = "Prompt is required.";
-"error.missing_api_key" = "API key is missing. Add GEMINI API key in Settings.";
+"error.missing_api_key" = "API key is missing. Add a provider key in Settings.";
+"error.missing_openai_api_key" = "OpenAI API key is missing. Add it in Settings.";
+"error.missing_openai_compatible_api_key" = "OpenAI-compatible API key is missing. Add the gateway key in Settings.";
+"error.missing_kie_api_key" = "Kie.ai API key is missing. Add it in Settings.";
+"error.provider_disabled" = "Provider is disabled in Settings.";
+"error.invalid_openai_compatible_base_url" = "OpenAI-compatible Base URL is invalid.";
 "error.prompt_from_image_no_valid_file" = "No valid image file found for prompt generation.";
 "error.prompt_from_image_model_not_supported" = "Selected model does not support image input for prompt work.";
 "error.preset_name_empty" = "Preset name is required.";
@@ -180,6 +203,7 @@
 "error.unauthorized" = "Unauthorized. Check your API key.";
 "error.permission_denied" = "Permission denied or model access is unavailable.";
 "error.quota" = "Quota exceeded for this API key/account.";
+"error.billing_credits_depleted" = "Prepaid credits or billing balance are depleted for this API key.";
 "error.rate_limited" = "Rate limit exceeded. Try again later.";
 "error.server" = "Server error.";
 "error.server_with_code" = "Server error (HTTP %d).";
@@ -188,5 +212,59 @@
 "error.no_text_in_response" = "No improved prompt text was found in the API response.";
 "error.decoding" = "Failed to parse API response.";
 "error.io" = "File system error";
+"error.kie_upload_failed" = "Failed to upload image to Kie.ai.";
+"error.kie_task_failed" = "Kie.ai task failed.";
 
 "main.inspector_resize_help" = "Resize the inspector";
+
+"concept.title" = "Concepting";
+"concept.new" = "Clear canvas";
+"concept.layers" = "Layers";
+"concept.add_layer" = "Add layer";
+"concept.add_reference" = "Add reference";
+"concept.import_image" = "Import image";
+"concept.canvas" = "Canvas";
+"concept.canvas_aspect" = "Canvas aspect";
+"concept.canvas_size" = "Canvas size";
+"concept.canvas_size.small" = "S";
+"concept.canvas_size.medium" = "M";
+"concept.canvas_size.large" = "L";
+"concept.canvas_background" = "Canvas background";
+"concept.active_layer" = "Active layer";
+"concept.layer_name" = "Layer name";
+"concept.layer_not_editable" = "Drawing is unavailable on locked or reference layers.";
+"concept.no_layer_selected" = "Select a layer to edit its properties.";
+"concept.layer_type.reference" = "Reference";
+"concept.layer_type.sketch" = "Sketch";
+"concept.layer_type.result" = "Result";
+"concept.remove_background" = "Remove background";
+"concept.duplicate_layer" = "Duplicate layer";
+"concept.delete_layer" = "Delete layer";
+"concept.move_up" = "Move layer up";
+"concept.move_down" = "Move layer down";
+"concept.brush_color" = "Brush color";
+"concept.brush_size" = "Size";
+"concept.opacity" = "Opacity";
+"concept.canvas_empty_title" = "Your concept appears here";
+"concept.canvas_empty_description" = "Import a reference layer, sketch over it, and run generation from the right inspector.";
+"concept.prompt_placeholder" = "Describe what should be generated from the sketch and which layers must stay unchanged.";
+"concept.final_prompt_preview" = "Final prompt";
+"concept.reference_mode" = "Reference fidelity";
+"concept.reference_mode.strict" = "Strict";
+"concept.reference_mode.balanced" = "Balanced";
+"concept.reference_mode.creative" = "Creative";
+
+"error.concept_no_editable_region" = "No editable region found. Add an unlocked sketch or result layer.";
+"error.concept_no_locked_base" = "No locked base found. Lock a reference or base layer before generating.";
+"error.concept_no_project_loaded" = "Concept project is not loaded.";
+"error.concept_invalid_layer" = "The selected layer is invalid.";
+"error.concept_import_failed" = "Failed to import image into the concept layer.";
+"error.concept_background_removal_unavailable" = "Background removal requires macOS 14 or newer.";
+"error.concept_background_removal_failed" = "Failed to remove layer background.";
+
+"status.concept_background_removed" = "Layer background removed.";
+"sidebar.kie_balance" = "Kie balance: %@ credits";
+"sidebar.kie_balance_loading" = "Kie balance: loading...";
+"sidebar.kie_balance_unknown" = "Kie balance: unknown";
+"sidebar.kie_balance_error" = "Kie balance: error";
+"sidebar.kie_balance_refresh" = "Refresh Kie.ai balance";

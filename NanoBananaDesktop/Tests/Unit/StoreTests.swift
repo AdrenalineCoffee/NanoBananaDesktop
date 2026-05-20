@@ -19,15 +19,128 @@ func configStoreCreatesDefaultsWhenFileMissing() throws {
 
     #expect(result.config.model == AppConfig.defaultModel)
     #expect(result.config.promptEnhancementModel == AppConfig.defaultPromptEnhancementModel)
+    #expect(result.config.openAIAPIKey.isEmpty)
+    #expect(result.config.openAICompatibleAPIKey.isEmpty)
+    #expect(result.config.openAICompatibleBaseURL == AppConfig.defaultOpenAICompatibleBaseURL)
     #expect(result.config.promptEnhancementInstruction == AppConfig.defaultPromptEnhancementInstruction)
     #expect(result.config.promptFromImageInstruction == AppConfig.defaultPromptFromImageInstruction)
+    #expect(result.config.conceptPromptAdditions == AppConfig.defaultConceptPromptAdditions)
     #expect(result.config.proxyEnabled == false)
     #expect(result.config.allowDirectFallback == false)
     #expect(result.config.networkPolicyVersion == AppConfig.defaultNetworkPolicyVersion)
     #expect(result.config.defaultOutputDir == expectedDefaultPath)
     #expect(result.config.requestTimeoutSec == AppConfig.defaultRequestTimeoutSec)
+    #expect(result.config.generationCompletionNotificationsEnabled == AppConfig.defaultGenerationCompletionNotificationsEnabled)
     #expect(result.recoveredFromCorruption == false)
     #expect(FileManager.default.fileExists(atPath: configURL.path))
+}
+
+@Test
+func configStorePersistsOpenAIAPIKey() throws {
+    let tempDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+    let configURL = tempDir.appendingPathComponent("config.json")
+    let store = try AppConfigStore(configURL: configURL)
+
+    var config = AppConfig.defaultValue(currentWorkingDirectory: tempDir, fileManager: .default)
+    config.openAIAPIKey = "sk-openai-test"
+    try store.save(config)
+
+    let loaded = store.load(currentWorkingDirectory: tempDir)
+    #expect(loaded.config.openAIAPIKey == "sk-openai-test")
+}
+
+@Test
+func configStorePersistsOpenAICompatibleGatewaySettings() throws {
+    let tempDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+    let configURL = tempDir.appendingPathComponent("config.json")
+    let store = try AppConfigStore(configURL: configURL)
+
+    var config = AppConfig.defaultValue(currentWorkingDirectory: tempDir, fileManager: .default)
+    config.openAICompatibleAPIKey = "gw-test-key"
+    config.openAICompatibleBaseURL = " https://www.packyapi.com/v1/ "
+    try store.save(config)
+
+    let loaded = store.load(currentWorkingDirectory: tempDir)
+    #expect(loaded.config.openAICompatibleAPIKey == "gw-test-key")
+    #expect(loaded.config.openAICompatibleBaseURL == "https://www.packyapi.com/v1")
+}
+
+@Test
+func configStorePersistsKieKeyAndProviderToggles() throws {
+    let tempDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+    let configURL = tempDir.appendingPathComponent("config.json")
+    let store = try AppConfigStore(configURL: configURL)
+
+    var config = AppConfig.defaultValue(currentWorkingDirectory: tempDir, fileManager: .default)
+    config.kieAPIKey = " kie-test-key "
+    config.geminiEnabled = false
+    config.openAIEnabled = true
+    config.openAICompatibleEnabled = false
+    config.kieEnabled = true
+    try store.save(config)
+
+    let loaded = store.load(currentWorkingDirectory: tempDir)
+    #expect(loaded.config.kieAPIKey == "kie-test-key")
+    #expect(loaded.config.geminiEnabled == false)
+    #expect(loaded.config.openAIEnabled == true)
+    #expect(loaded.config.openAICompatibleEnabled == false)
+    #expect(loaded.config.kieEnabled == true)
+}
+
+@Test
+func configStoreMigratesMissingProviderTogglesToEnabled() throws {
+    let tempDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+    let configURL = tempDir.appendingPathComponent("config.json")
+    let oldSchemaJSON = """
+    {
+      "apiKey": "abc",
+      "openAIAPIKey": "sk-openai",
+      "openAICompatibleAPIKey": "gw-key",
+      "kieAPIKey": "kie-key",
+      "model": "nano-banana-pro-preview",
+      "language": "en",
+      "defaultOutputDir": "/tmp",
+      "requestTimeoutSec": 180
+    }
+    """
+    try oldSchemaJSON.data(using: .utf8)?.write(to: configURL)
+
+    let store = try AppConfigStore(configURL: configURL)
+    let result = store.load(currentWorkingDirectory: tempDir)
+
+    #expect(result.config.geminiEnabled == true)
+    #expect(result.config.openAIEnabled == true)
+    #expect(result.config.openAICompatibleEnabled == true)
+    #expect(result.config.kieEnabled == true)
+}
+
+@Test
+func configStorePersistsGenerationCompletionNotificationsFlag() throws {
+    let tempDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+    let configURL = tempDir.appendingPathComponent("config.json")
+    let store = try AppConfigStore(configURL: configURL)
+
+    var config = AppConfig.defaultValue(currentWorkingDirectory: tempDir, fileManager: .default)
+    config.generationCompletionNotificationsEnabled = false
+    try store.save(config)
+
+    let loaded = store.load(currentWorkingDirectory: tempDir)
+    #expect(loaded.config.generationCompletionNotificationsEnabled == false)
 }
 
 @Test
@@ -65,6 +178,7 @@ func configStoreMigratesLegacyPicturesDirectoryToNanoBananaImg() throws {
     #expect(result.config.promptEnhancementModel == AppConfig.defaultPromptEnhancementModel)
     #expect(result.config.promptEnhancementInstruction == AppConfig.defaultPromptEnhancementInstruction)
     #expect(result.config.promptFromImageInstruction == AppConfig.defaultPromptFromImageInstruction)
+    #expect(result.config.conceptPromptAdditions == AppConfig.defaultConceptPromptAdditions)
     #expect(result.config.proxyEnabled == false)
     #expect(result.config.proxyType == .http)
     #expect(result.config.proxyPort == 8080)
@@ -110,6 +224,7 @@ func configStoreMigratesMissingPromptFromImageInstructionToDefault() throws {
     let store = try AppConfigStore(configURL: configURL)
     let result = store.load(currentWorkingDirectory: tempDir)
     #expect(result.config.promptFromImageInstruction == AppConfig.defaultPromptFromImageInstruction)
+    #expect(result.config.conceptPromptAdditions == AppConfig.defaultConceptPromptAdditions)
     #expect(result.config.requestTimeoutSec == AppConfig.defaultRequestTimeoutSec)
 }
 
@@ -228,7 +343,7 @@ func configStoreDisablesProxyWhenLegacyConfigHasEmptyHost() throws {
 }
 
 @Test
-func historyStoreKeepsOnlyLatestTwentyItems() throws {
+func historyStoreKeepsOnlyLatestTwentyItemsWhenBounded() throws {
     let tempDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -257,6 +372,38 @@ func historyStoreKeepsOnlyLatestTwentyItems() throws {
 
     let loaded = store.load()
     #expect(loaded.count == 20)
+}
+
+@Test
+func historyStoreKeepsAllItemsWhenUnbounded() throws {
+    let tempDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+    let historyURL = tempDir.appendingPathComponent("history.json")
+    let store = try HistoryStore(historyURL: historyURL)
+
+    for index in 0..<25 {
+        let record = HistoryRecord(
+            timestamp: Date().addingTimeInterval(TimeInterval(index)),
+            mode: .generate,
+            prompt: "prompt-\(index)",
+            resolution: .k1,
+            inputImagePaths: [],
+            outputImagePath: "/tmp/\(index).png",
+            status: .success,
+            errorMessage: nil,
+            durationMs: 100,
+            networkRoute: .proxy,
+            proxyUsed: true,
+            fallbackUsed: false,
+            proxySummary: "http://proxy.local:8080"
+        )
+        try store.append(record)
+    }
+
+    let loaded = store.load()
+    #expect(loaded.count == 25)
 }
 
 @Test

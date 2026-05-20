@@ -939,7 +939,15 @@ actor GeminiAPIClient {
         }
 
         if let errorPayload = decoded.error {
-            throw mapAPIError(statusCode: errorPayload.code ?? 0, message: errorPayload.message, route: route)
+            throw mapAPIError(
+                statusCode: errorPayload.code ?? 0,
+                message: errorDescription(
+                    message: errorPayload.message,
+                    status: errorPayload.status,
+                    code: errorPayload.code.map(String.init)
+                ),
+                route: route
+            )
         }
 
         var images: [GeneratedImageResult] = []
@@ -1007,7 +1015,11 @@ actor GeminiAPIClient {
             code = 0
         }
 
-        let message = status["message"] as? String
+        let message = errorDescription(
+            message: status["message"] as? String,
+            status: status["status"] as? String,
+            code: code > 0 ? String(code) : nil
+        )
 
         if code <= 0 {
             if let message, !message.isEmpty {
@@ -1025,6 +1037,9 @@ actor GeminiAPIClient {
     }
 
     private func mapAPIError(statusCode: Int, message: String?, route: NetworkRoute) -> AppError {
+        if let billingError = AppError.billingCreditsDepletedError(message: message) {
+            return billingError
+        }
         let normalizedMessage = (message ?? "").lowercased()
 
         switch statusCode {
@@ -1036,13 +1051,16 @@ actor GeminiAPIClient {
         case 401:
             return .unauthorized
         case 403:
-            if normalizedMessage.contains("quota") || normalizedMessage.contains("exceeded") {
-                return .quotaExceeded
+            if let quotaError = AppError.quotaError(message: message) {
+                return quotaError
             }
             return .permissionDenied
         case 407:
             return .proxyAuthFailed(message ?? "Proxy authentication failed")
         case 429:
+            if let quotaError = AppError.quotaError(message: message) {
+                return quotaError
+            }
             return .rateLimited
         case 500...599:
             return .serverError(statusCode)
@@ -1061,7 +1079,11 @@ actor GeminiAPIClient {
 
     private func extractMessage(from data: Data) -> String? {
         if let envelope = try? JSONDecoder().decode(ErrorEnvelope.self, from: data) {
-            return envelope.error.message
+            return errorDescription(
+                message: envelope.error.message,
+                status: envelope.error.status,
+                code: envelope.error.code.map(String.init)
+            )
         }
 
         if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -1070,6 +1092,13 @@ actor GeminiAPIClient {
         }
 
         return String(data: data, encoding: .utf8)
+    }
+
+    private func errorDescription(message: String?, status: String?, code: String?) -> String? {
+        let parts = [status, code, message]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: ": ")
     }
 
     private func mapURLError(_ error: URLError, route: NetworkRoute) -> AppError {

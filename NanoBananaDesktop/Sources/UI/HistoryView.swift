@@ -10,9 +10,11 @@ struct HistoryView: View {
     @State private var localHistoryMessage: String?
     @State private var thumbnails: [String: NSImage] = [:]
     @State private var loadingThumbnailPaths: Set<String> = []
+    @State private var currentPageIndex: Int = 0
 
     private let thumbnailLoader = HistoryThumbnailLoader.shared
     private let thumbnailSize = CGSize(width: 88, height: 88)
+    private let pageSize = 20
 
     private static let formatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -36,6 +38,7 @@ struct HistoryView: View {
             VStack(alignment: .leading, spacing: 14) {
                 Text(viewModel.localized("history.title"))
                     .font(.largeTitle.weight(.semibold))
+                    .frame(maxWidth: .infinity, alignment: .center)
 
                 HStack(spacing: 12) {
                     Picker(viewModel.localized("history.filter"), selection: $viewModel.historyFilter) {
@@ -51,6 +54,44 @@ struct HistoryView: View {
                         Text(viewModel.localized("history.route_filter.direct")).tag(HistoryRouteFilter.directFallback)
                     }
                     .pickerStyle(.segmented)
+                }
+
+                if !viewModel.filteredHistory.isEmpty {
+                    HStack(spacing: 12) {
+                        Spacer()
+
+                        Text(
+                            String(
+                                format: viewModel.localized("history.page_format"),
+                                currentPageNumber,
+                                pageCount
+                            )
+                        )
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(.secondary)
+
+                        Button {
+                            guard currentPageIndex > 0 else { return }
+                            currentPageIndex -= 1
+                            prefetchInitialThumbnails()
+                        } label: {
+                            Image(systemName: "chevron.left")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(currentPageIndex == 0)
+                        .help(viewModel.localized("history.previous_page"))
+
+                        Button {
+                            guard currentPageIndex + 1 < pageCount else { return }
+                            currentPageIndex += 1
+                            prefetchInitialThumbnails()
+                        } label: {
+                            Image(systemName: "chevron.right")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(currentPageIndex + 1 >= pageCount)
+                        .help(viewModel.localized("history.next_page"))
+                    }
                 }
 
                 if let localHistoryMessage, !localHistoryMessage.isEmpty {
@@ -77,7 +118,7 @@ struct HistoryView: View {
                     .padding(16)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 } else {
-                    List(viewModel.filteredHistory) { item in
+                    List(currentPageItems) { item in
                         HStack(alignment: .top, spacing: 10) {
                             thumbnailView(for: item)
 
@@ -207,24 +248,53 @@ struct HistoryView: View {
         }
         .onAppear {
             if isVisible {
+                synchronizePageState()
                 prefetchInitialThumbnails()
             }
         }
         .onChange(of: isVisible) { newValue in
             if newValue {
+                synchronizePageState()
                 prefetchInitialThumbnails()
             }
         }
         .onChange(of: viewModel.historyFilter) { _ in
             if isVisible {
+                currentPageIndex = 0
+                synchronizePageState()
                 prefetchInitialThumbnails()
             }
         }
         .onChange(of: viewModel.historyRouteFilter) { _ in
             if isVisible {
+                currentPageIndex = 0
+                synchronizePageState()
                 prefetchInitialThumbnails()
             }
         }
+        .onChange(of: viewModel.history.count) { _ in
+            if isVisible {
+                synchronizePageState()
+                prefetchInitialThumbnails()
+            }
+        }
+    }
+
+    private var pageCount: Int {
+        max(Int(ceil(Double(viewModel.filteredHistory.count) / Double(pageSize))), 1)
+    }
+
+    private var currentPageNumber: Int {
+        min(currentPageIndex + 1, pageCount)
+    }
+
+    private var currentPageItems: [HistoryRecord] {
+        let startIndex = currentPageIndex * pageSize
+        guard startIndex < viewModel.filteredHistory.count else {
+            return []
+        }
+        let endIndex = min(startIndex + pageSize, viewModel.filteredHistory.count)
+        return Array(viewModel.filteredHistory[startIndex..<endIndex])
     }
 
     @ViewBuilder
@@ -331,8 +401,9 @@ struct HistoryView: View {
     }
 
     private func prefetchInitialThumbnails() {
+        synchronizePageState()
         let outputPaths = Array(
-            viewModel.filteredHistory
+            currentPageItems
                 .compactMap(\.outputImagePath)
                 .prefix(12)
         )
@@ -374,5 +445,15 @@ struct HistoryView: View {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(value, forType: .string)
+    }
+
+    private func synchronizePageState() {
+        let lastPageIndex = max(pageCount - 1, 0)
+        if currentPageIndex > lastPageIndex {
+            currentPageIndex = lastPageIndex
+        }
+        if currentPageIndex < 0 {
+            currentPageIndex = 0
+        }
     }
 }

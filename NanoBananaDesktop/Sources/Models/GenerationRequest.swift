@@ -36,11 +36,29 @@ struct GenerationRequest: Sendable {
 struct GeneratedImageResult: Equatable, Sendable {
     let imageData: Data
     let modelText: String?
+    let cost: GenerationCostEstimate?
+
+    init(imageData: Data, modelText: String?, cost: GenerationCostEstimate? = nil) {
+        self.imageData = imageData
+        self.modelText = modelText
+        self.cost = cost
+    }
 }
 
 struct GenerationResult: Equatable, Sendable {
     let images: [GeneratedImageResult]
     let usedResolution: ImageResolution
+    let cost: GenerationCostEstimate?
+
+    init(
+        images: [GeneratedImageResult],
+        usedResolution: ImageResolution,
+        cost: GenerationCostEstimate? = nil
+    ) {
+        self.images = images
+        self.usedResolution = usedResolution
+        self.cost = cost
+    }
 
     var imageData: Data {
         images.first?.imageData ?? Data()
