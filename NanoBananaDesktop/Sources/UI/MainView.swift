@@ -567,8 +567,20 @@ struct MainView: View {
                             get: { viewModel.config.model },
                             set: { viewModel.config.model = $0 }
                         )) {
-                            ForEach(viewModel.selectableImageModels) { model in
-                                Text(viewModel.modelTitle(for: model)).tag(model.name)
+                            if !generativeImageModels.isEmpty {
+                                Section(viewModel.localized("main.model_group_generation")) {
+                                    ForEach(generativeImageModels) { model in
+                                        Text(viewModel.modelTitle(for: model)).tag(model.name)
+                                    }
+                                }
+                            }
+
+                            if !utilityImageModels.isEmpty {
+                                Section(viewModel.localized("main.model_group_utility")) {
+                                    ForEach(utilityImageModels) { model in
+                                        Text(viewModel.modelTitle(for: model)).tag(model.name)
+                                    }
+                                }
                             }
                         }
                         .labelsHidden()
@@ -736,17 +748,27 @@ struct MainView: View {
                 }
             }
 
-            generationCostRow
+            if let generationCostDisplayText = viewModel.generationCostDisplayText {
+                generationCostRow(generationCostDisplayText)
+            }
         }
     }
 
-    private var generationCostRow: some View {
+    private var generativeImageModels: [ModelCatalogItem] {
+        viewModel.selectableImageModels.filter { !viewModel.isImageUtilityModel($0) }
+    }
+
+    private var utilityImageModels: [ModelCatalogItem] {
+        viewModel.selectableImageModels.filter { viewModel.isImageUtilityModel($0) }
+    }
+
+    private func generationCostRow(_ text: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "creditcard")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
 
-            Text(viewModel.generationCostDisplayText)
+            Text(text)
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(2)

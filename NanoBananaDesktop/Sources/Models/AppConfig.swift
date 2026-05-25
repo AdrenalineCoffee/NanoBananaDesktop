@@ -92,6 +92,8 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
     static let defaultRequestTimeoutSec = 180
     static let defaultNetworkPolicyVersion = 1
     static let defaultOpenAICompatibleBaseURL = "https://www.packyapi.com/v1"
+    static let defaultCreditCostCurrency: CreditCostCurrency = .usd
+    static let defaultCreditCostPer100Credits: Double = 1
 
     var apiKey: String
     var openAIAPIKey: String
@@ -112,6 +114,8 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
     var language: AppLanguage
     var defaultOutputDir: String
     var requestTimeoutSec: Int
+    var creditCostCurrency: CreditCostCurrency
+    var creditCostPer100Credits: Double
 
     var proxyType: ProxyType
     var proxyHost: String
@@ -161,6 +165,8 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
             language: .systemDefault(),
             defaultOutputDir: outputDirectory.path,
             requestTimeoutSec: defaultRequestTimeoutSec,
+            creditCostCurrency: defaultCreditCostCurrency,
+            creditCostPer100Credits: defaultCreditCostPer100Credits,
             proxyType: .http,
             proxyHost: "",
             proxyPort: 8080,
@@ -212,6 +218,8 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
         case language
         case defaultOutputDir
         case requestTimeoutSec
+        case creditCostCurrency
+        case creditCostPer100Credits
         case proxyType
         case proxyHost
         case proxyPort
@@ -243,6 +251,8 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
         language: AppLanguage,
         defaultOutputDir: String,
         requestTimeoutSec: Int,
+        creditCostCurrency: CreditCostCurrency,
+        creditCostPer100Credits: Double,
         proxyType: ProxyType,
         proxyHost: String,
         proxyPort: Int,
@@ -272,6 +282,8 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
         self.language = language
         self.defaultOutputDir = defaultOutputDir
         self.requestTimeoutSec = requestTimeoutSec
+        self.creditCostCurrency = creditCostCurrency
+        self.creditCostPer100Credits = creditCostPer100Credits
         self.proxyType = proxyType
         self.proxyHost = proxyHost
         self.proxyPort = proxyPort
@@ -312,6 +324,10 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
         language = try container.decodeIfPresent(AppLanguage.self, forKey: .language) ?? defaults.language
         defaultOutputDir = try container.decodeIfPresent(String.self, forKey: .defaultOutputDir) ?? defaults.defaultOutputDir
         requestTimeoutSec = try container.decodeIfPresent(Int.self, forKey: .requestTimeoutSec) ?? defaults.requestTimeoutSec
+        creditCostCurrency = try container.decodeIfPresent(CreditCostCurrency.self, forKey: .creditCostCurrency)
+            ?? defaults.creditCostCurrency
+        creditCostPer100Credits = try container.decodeIfPresent(Double.self, forKey: .creditCostPer100Credits)
+            ?? defaults.creditCostPer100Credits
 
         proxyType = try container.decodeIfPresent(ProxyType.self, forKey: .proxyType) ?? defaults.proxyType
         proxyHost = try container.decodeIfPresent(String.self, forKey: .proxyHost) ?? defaults.proxyHost
@@ -357,6 +373,8 @@ IMPROVED PROMPT: (единый улучшенный промпт для гене
         try container.encode(language, forKey: .language)
         try container.encode(defaultOutputDir, forKey: .defaultOutputDir)
         try container.encode(requestTimeoutSec, forKey: .requestTimeoutSec)
+        try container.encode(creditCostCurrency, forKey: .creditCostCurrency)
+        try container.encode(creditCostPer100Credits, forKey: .creditCostPer100Credits)
 
         try container.encode(proxyType, forKey: .proxyType)
         try container.encode(proxyHost, forKey: .proxyHost)

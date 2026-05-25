@@ -167,6 +167,12 @@ struct HistoryView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
 
+                                if let costText = viewModel.historyCostDisplayText(for: item) {
+                                    Text(costText)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
                                 if let proxySummary = item.proxySummary, item.proxyUsed {
                                     Text(proxySummary)
                                         .font(.caption2)

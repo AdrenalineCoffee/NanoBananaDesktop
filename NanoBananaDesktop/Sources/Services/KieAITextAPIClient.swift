@@ -95,7 +95,6 @@ actor KieAITextAPIClient {
         switch spec.wireFormat {
         case .chatCompletions:
             payload = [
-                "model": spec.model,
                 "messages": [
                     [
                         "role": "user",
@@ -103,9 +102,22 @@ actor KieAITextAPIClient {
                     ]
                 ]
             ]
+        case .claudeMessages:
+            payload = [
+                "model": spec.model,
+                "stream": false,
+                "max_tokens": 4096,
+                "messages": [
+                    [
+                        "role": "user",
+                        "content": claudeContent(prompt: trimmedPrompt, imageURLs: imageURLs)
+                    ]
+                ]
+            ]
         case .responses:
             payload = [
                 "model": spec.model,
+                "stream": false,
                 "input": [
                     [
                         "role": "user",
@@ -122,18 +134,36 @@ actor KieAITextAPIClient {
         }
     }
 
-    private func chatContent(prompt: String, imageURLs: [String]) -> Any {
-        guard !imageURLs.isEmpty else {
-            return prompt
-        }
-
-        var content: [[String: Any]] = imageURLs.map { url in
+    private func chatContent(prompt: String, imageURLs: [String]) -> [[String: Any]] {
+        var content: [[String: Any]] = [
+            ["type": "text", "text": prompt]
+        ]
+        content.append(contentsOf: imageURLs.map { url in
             [
                 "type": "image_url",
                 "image_url": ["url": url]
             ]
+        })
+        return content
+    }
+
+    private func claudeContent(prompt: String, imageURLs: [String]) -> Any {
+        guard !imageURLs.isEmpty else {
+            return prompt
         }
-        content.append(["type": "text", "text": prompt])
+
+        var content: [[String: Any]] = [
+            ["type": "text", "text": prompt]
+        ]
+        content.append(contentsOf: imageURLs.map { url in
+            [
+                "type": "image",
+                "source": [
+                    "type": "url",
+                    "url": url
+                ]
+            ]
+        })
         return content
     }
 
@@ -230,10 +260,20 @@ actor KieAITextAPIClient {
     }
 
     private func extractOutputText(from data: Data) throws -> String {
-        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw AppError.decodingError
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let text = extractOutputText(fromJSONObject: object) {
+            return text
         }
 
+        if let eventStream = String(data: data, encoding: .utf8),
+           let text = extractOutputText(fromEventStream: eventStream) {
+            return text
+        }
+
+        throw AppError.noTextInResponse
+    }
+
+    private func extractOutputText(fromJSONObject object: [String: Any]) -> String? {
         if let outputText = object["output_text"] as? String,
            !outputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return outputText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -246,6 +286,14 @@ actor KieAITextAPIClient {
                     if let text = textValue(from: content) {
                         return text
                     }
+                }
+                if let delta = choice["delta"] as? [String: Any],
+                   let content = delta["content"],
+                   let text = textValue(from: content) {
+                    return text
+                }
+                if let text = textValue(from: choice["text"] as Any) {
+                    return text
                 }
             }
         }
@@ -262,7 +310,77 @@ actor KieAITextAPIClient {
             }
         }
 
-        throw AppError.noTextInResponse
+        if let data = object["data"] as? [String: Any],
+           let text = extractOutputText(fromJSONObject: data) {
+            return text
+        }
+
+        if let result = object["result"] as? [String: Any],
+           let text = extractOutputText(fromJSONObject: result) {
+            return text
+        }
+
+        if let content = object["content"],
+           let text = textValue(from: content) {
+            return text
+        }
+
+        if let text = textValue(from: object["text"] as Any) {
+            return text
+        }
+
+        return nil
+    }
+
+    private func extractOutputText(fromEventStream eventStream: String) -> String? {
+        var chunks: [String] = []
+        for line in eventStream.components(separatedBy: .newlines) {
+            let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmedLine.hasPrefix("data:") else {
+                continue
+            }
+
+            let payload = String(trimmedLine.dropFirst("data:".count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !payload.isEmpty, payload != "[DONE]" else {
+                continue
+            }
+
+            if let data = payload.data(using: .utf8),
+               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                if let text = extractStreamingDeltaText(fromJSONObject: object) {
+                    chunks.append(text)
+                } else if let text = extractOutputText(fromJSONObject: object) {
+                    chunks.append(text)
+                }
+            } else {
+                chunks.append(payload)
+            }
+        }
+
+        let joined = chunks.joined().trimmingCharacters(in: .whitespacesAndNewlines)
+        return joined.isEmpty ? nil : joined
+    }
+
+    private func extractStreamingDeltaText(fromJSONObject object: [String: Any]) -> String? {
+        guard let choices = object["choices"] as? [[String: Any]] else {
+            return nil
+        }
+
+        let chunks = choices.compactMap { choice -> String? in
+            guard let delta = choice["delta"] as? [String: Any],
+                  let content = delta["content"] else {
+                return nil
+            }
+
+            if let string = content as? String {
+                return string
+            }
+            return textValue(from: content)
+        }
+
+        let joined = chunks.joined()
+        return joined.isEmpty ? nil : joined
     }
 
     private func textValue(from value: Any) -> String? {

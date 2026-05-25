@@ -48,6 +48,7 @@
 "settings.group.proxy" = "Proxy";
 "settings.group.output" = "Output";
 "settings.group.localization" = "Localization";
+"settings.group.cost_conversion" = "Credit cost conversion";
 "settings.api_key" = "Gemini API key";
 "settings.openai_api_key" = "OpenAI API key";
 "settings.openai_compatible_api_key" = "OpenAI-compatible API key";
@@ -91,6 +92,9 @@
 "settings.output_default_hint" = "Default: ~/Pictures/NanoBanana_img";
 "settings.timeout" = "Request timeout";
 "settings.generation_completion_notifications" = "Notify when generation completes";
+"settings.credit_cost_currency" = "Currency";
+"settings.credit_cost_per_100" = "Price per 100 Kie credits";
+"settings.credit_cost_per_100_hint" = "Kie credit costs are converted approximately using this value.";
 "settings.version_value" = "Version: %@";
 "settings.proxy_enabled" = "Use proxy for network requests";
 "settings.allow_direct_fallback" = "Allow direct fallback if proxy fails";
@@ -141,6 +145,11 @@
 "history.page_format" = "Page %d of %d";
 "history.previous_page" = "Previous page";
 "history.next_page" = "Next page";
+"history.cost_format" = "Cost: %@";
+
+"currency.usd" = "US dollars";
+"currency.eur" = "Euros";
+"currency.rub" = "Rubles";
 
 "route.proxy" = "PROXY";
 "route.direct_fallback" = "DIRECT FALLBACK";
@@ -268,3 +277,5 @@
 "sidebar.kie_balance_unknown" = "Kie balance: unknown";
 "sidebar.kie_balance_error" = "Kie balance: error";
 "sidebar.kie_balance_refresh" = "Refresh Kie.ai balance";
+"main.model_group_generation" = "Generative AI";
+"main.model_group_utility" = "AI utilities";

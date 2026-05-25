@@ -18,6 +18,7 @@ struct HistoryRecord: Codable, Identifiable {
     let failureDiagnostics: String?
     let durationMs: Int
     let modelResponseText: String?
+    let generationCost: GenerationCostEstimate?
 
     let networkRoute: NetworkRoute
     let proxyUsed: Bool
@@ -40,6 +41,7 @@ struct HistoryRecord: Codable, Identifiable {
         failureDiagnostics: String? = nil,
         durationMs: Int,
         modelResponseText: String? = nil,
+        generationCost: GenerationCostEstimate? = nil,
         networkRoute: NetworkRoute = .proxy,
         proxyUsed: Bool = true,
         fallbackUsed: Bool = false,
@@ -60,6 +62,7 @@ struct HistoryRecord: Codable, Identifiable {
         self.failureDiagnostics = failureDiagnostics
         self.durationMs = durationMs
         self.modelResponseText = modelResponseText
+        self.generationCost = generationCost
         self.networkRoute = networkRoute
         self.proxyUsed = proxyUsed
         self.fallbackUsed = fallbackUsed
@@ -83,6 +86,7 @@ struct HistoryRecord: Codable, Identifiable {
         case failureDiagnostics
         case durationMs
         case modelResponseText
+        case generationCost
         case networkRoute
         case proxyUsed
         case fallbackUsed
@@ -115,6 +119,7 @@ struct HistoryRecord: Codable, Identifiable {
         failureDiagnostics = try container.decodeIfPresent(String.self, forKey: .failureDiagnostics)
         durationMs = try container.decodeIfPresent(Int.self, forKey: .durationMs) ?? 0
         modelResponseText = try container.decodeIfPresent(String.self, forKey: .modelResponseText)
+        generationCost = try container.decodeIfPresent(GenerationCostEstimate.self, forKey: .generationCost)
         networkRoute = try container.decodeIfPresent(NetworkRoute.self, forKey: .networkRoute) ?? .proxy
         proxyUsed = try container.decodeIfPresent(Bool.self, forKey: .proxyUsed) ?? true
         fallbackUsed = try container.decodeIfPresent(Bool.self, forKey: .fallbackUsed) ?? false
@@ -138,6 +143,7 @@ struct HistoryRecord: Codable, Identifiable {
         try container.encodeIfPresent(failureDiagnostics, forKey: .failureDiagnostics)
         try container.encode(durationMs, forKey: .durationMs)
         try container.encodeIfPresent(modelResponseText, forKey: .modelResponseText)
+        try container.encodeIfPresent(generationCost, forKey: .generationCost)
         try container.encode(networkRoute, forKey: .networkRoute)
         try container.encode(proxyUsed, forKey: .proxyUsed)
         try container.encode(fallbackUsed, forKey: .fallbackUsed)

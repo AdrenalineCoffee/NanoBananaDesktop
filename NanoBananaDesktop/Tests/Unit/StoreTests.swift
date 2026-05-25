@@ -429,6 +429,56 @@ func configStorePersistsCustomModelName() throws {
 }
 
 @Test
+func configStorePersistsCreditCostConversion() throws {
+    let tempDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+    let configURL = tempDir.appendingPathComponent("config.json")
+    let store = try AppConfigStore(configURL: configURL)
+    var config = store.load(currentWorkingDirectory: tempDir).config
+    config.creditCostCurrency = .eur
+    config.creditCostPer100Credits = 2.5
+    try store.save(config)
+
+    let reloaded = store.load(currentWorkingDirectory: tempDir).config
+    #expect(reloaded.creditCostCurrency == .eur)
+    #expect(reloaded.creditCostPer100Credits == 2.5)
+}
+
+@Test
+func historyStorePersistsGenerationCost() throws {
+    let tempDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+    let historyURL = tempDir.appendingPathComponent("history.json")
+    let store = try HistoryStore(historyURL: historyURL)
+    let record = HistoryRecord(
+        mode: .generate,
+        prompt: "prompt",
+        resolution: .k1,
+        inputImagePaths: [],
+        outputImagePath: "/tmp/output.png",
+        status: .success,
+        errorMessage: nil,
+        durationMs: 100,
+        generationCost: GenerationCostRegistry.actualKieCredits(
+            model: "nano-banana-pro",
+            resolution: .k1,
+            imageCount: 1,
+            totalCredits: 30
+        )
+    )
+    try store.append(record)
+
+    let loaded = store.load()
+    #expect(loaded.first?.generationCost?.unit == .kieCredits)
+    #expect(loaded.first?.generationCost?.total == 30)
+    #expect(loaded.first?.generationCost?.confidence == .actual)
+}
+
+@Test
 func configStoreLoadsPresetListFromConfig() throws {
     let tempDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent(UUID().uuidString, isDirectory: true)

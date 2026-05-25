@@ -831,8 +831,17 @@ final class ConceptingViewModel: ObservableObject {
                     let configuredProxySummary = appViewModel.config.proxyEnabled
                         ? "\(appViewModel.config.proxyType.rawValue)://\(appViewModel.config.proxyHost):\(appViewModel.config.proxyPort)"
                         : nil
+                    let estimatedCost = GenerationCostRegistry.estimate(
+                        provider: generationInput.provider,
+                        model: generationInput.request.model,
+                        resolution: generationInput.request.resolution,
+                        imageCount: max(result.images.count, 1)
+                    )
+                    let resolvedResultCost = result.cost
+                        ?? GenerationCostRegistry.combinedActualCost(from: result.images, fallback: estimatedCost)
                     for (index, savedURL) in savedOutputURLs.enumerated() {
-                        let modelText = index < result.images.count ? result.images[index].modelText : nil
+                        let generatedImage = index < result.images.count ? result.images[index] : nil
+                        let modelText = generatedImage?.modelText
                         let record = HistoryRecord(
                             mode: .edit,
                             prompt: trimmedPrompt,
@@ -843,6 +852,13 @@ final class ConceptingViewModel: ObservableObject {
                             errorMessage: nil,
                             durationMs: durationMs,
                             modelResponseText: modelText,
+                            generationCost: appViewModel.historyGenerationCost(
+                                image: generatedImage,
+                                resultCost: resolvedResultCost,
+                                provider: generationInput.provider,
+                                model: generationInput.request.model,
+                                resolution: generationInput.request.resolution
+                            ),
                             networkRoute: routeUsed,
                             proxyUsed: primaryRoute == .proxy,
                             fallbackUsed: fallbackUsed,
@@ -1041,6 +1057,13 @@ final class ConceptingViewModel: ObservableObject {
                     errorMessage: nil,
                     durationMs: durationMs,
                     modelResponseText: completed.image.modelText,
+                    generationCost: appViewModel.historyGenerationCost(
+                        image: completed.image,
+                        resultCost: nil,
+                        provider: generationInput.provider,
+                        model: generationInput.request.model,
+                        resolution: generationInput.request.resolution
+                    ),
                     networkRoute: route,
                     proxyUsed: proxyUsed,
                     fallbackUsed: fallbackUsed,

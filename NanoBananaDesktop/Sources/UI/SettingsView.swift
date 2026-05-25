@@ -226,6 +226,52 @@ struct SettingsView: View {
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 10) {
+                        Text(viewModel.localized("settings.group.cost_conversion"))
+                            .font(.headline)
+
+                        LabeledContent(viewModel.localized("settings.credit_cost_currency")) {
+                            Picker("", selection: Binding(
+                                get: { viewModel.config.creditCostCurrency },
+                                set: { viewModel.config.creditCostCurrency = $0 }
+                            )) {
+                                ForEach(CreditCostCurrency.allCases) { currency in
+                                    Text(viewModel.localized(currency.localizationKey)).tag(currency)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(width: 220, alignment: .trailing)
+                        }
+
+                        LabeledContent(viewModel.localized("settings.credit_cost_per_100")) {
+                            HStack(spacing: 8) {
+                                TextField(
+                                    "1.00",
+                                    value: Binding(
+                                        get: { viewModel.config.creditCostPer100Credits },
+                                        set: { viewModel.config.creditCostPer100Credits = max($0, 0) }
+                                    ),
+                                    format: .number.precision(.fractionLength(0...4))
+                                )
+                                .textFieldStyle(.roundedBorder)
+                                .multilineTextAlignment(.trailing)
+                                .frame(width: 120)
+
+                                Text(viewModel.config.creditCostCurrency.code)
+                                    .font(.callout.monospaced())
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Text(viewModel.localized("settings.credit_cost_per_100_hint"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(12)
+                }
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 10) {
                         Text(viewModel.localized("settings.group.proxy"))
                             .font(.headline)
 

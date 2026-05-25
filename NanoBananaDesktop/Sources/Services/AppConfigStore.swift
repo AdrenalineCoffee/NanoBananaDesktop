@@ -146,6 +146,12 @@ final class AppConfigStore {
         let normalizedNoProxyHosts = config.noProxyHosts
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+        let normalizedCreditCostPer100Credits: Double
+        if config.creditCostPer100Credits.isFinite && config.creditCostPer100Credits > 0 {
+            normalizedCreditCostPer100Credits = config.creditCostPer100Credits
+        } else {
+            normalizedCreditCostPer100Credits = defaults.creditCostPer100Credits
+        }
 
         return AppConfig(
             apiKey: trimmedKey,
@@ -167,6 +173,8 @@ final class AppConfigStore {
             language: config.language,
             defaultOutputDir: outputDirectory,
             requestTimeoutSec: timeout,
+            creditCostCurrency: config.creditCostCurrency,
+            creditCostPer100Credits: normalizedCreditCostPer100Credits,
             proxyType: config.proxyType,
             proxyHost: normalizedProxyHost,
             proxyPort: normalizedProxyPort,

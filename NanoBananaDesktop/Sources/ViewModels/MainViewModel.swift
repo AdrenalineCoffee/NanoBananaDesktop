@@ -245,8 +245,23 @@ final class MainViewModel: ObservableObject {
         "\(imageCountSelection)"
     }
 
-    var generationCostDisplayText: String {
-        GenerationCostRegistry.displayText(for: generationCostEstimate, language: config.language)
+    var generationCostDisplayText: String? {
+        guard let actual = lastActualGenerationCost,
+              actual.confidence == .actual else {
+            return nil
+        }
+        return GenerationCostRegistry.displayText(
+            for: actual,
+            language: config.language,
+            creditConversion: creditCostConversion
+        )
+    }
+
+    var creditCostConversion: CreditCostConversion {
+        CreditCostConversion(
+            currency: config.creditCostCurrency,
+            costPer100Credits: config.creditCostPer100Credits
+        )
     }
 
     var shouldShowKieBalance: Bool {
@@ -273,32 +288,6 @@ final class MainViewModel: ObservableObject {
         }
 
         return localized("sidebar.kie_balance_unknown")
-    }
-
-    private var generationCostEstimate: GenerationCostEstimate {
-        let provider = imageModelProvider(for: config.model)
-        let apiModel = apiModelName(for: config.model)
-        let resolvedResolution = resolutionMapper.resolve(
-            prompt: prompt.trimmingCharacters(in: .whitespacesAndNewlines),
-            selection: resolutionSelection
-        )
-
-        if let actual = lastActualGenerationCost,
-           actual.matches(
-            provider: provider,
-            model: apiModel,
-            resolution: resolvedResolution,
-            imageCount: imageCountSelection
-           ) {
-            return actual
-        }
-
-        return GenerationCostRegistry.estimate(
-            provider: provider,
-            model: apiModel,
-            resolution: resolvedResolution,
-            imageCount: imageCountSelection
-        )
     }
 
     var resolvedAspectRatio: ImageAspectRatio {
@@ -406,6 +395,44 @@ final class MainViewModel: ObservableObject {
         Localizer.string(key, language: config.language, args)
     }
 
+    func historyCostDisplayText(for record: HistoryRecord) -> String? {
+        guard let generationCost = record.generationCost else {
+            return nil
+        }
+
+        let value = GenerationCostRegistry.compactDisplayText(
+            for: generationCost,
+            language: config.language,
+            creditConversion: creditCostConversion
+        )
+        return localized("history.cost_format", value)
+    }
+
+    func historyGenerationCost(
+        image: GeneratedImageResult?,
+        resultCost: GenerationCostEstimate?,
+        provider: ModelProvider,
+        model: String,
+        resolution: ImageResolution
+    ) -> GenerationCostEstimate? {
+        if let imageCost = image?.cost {
+            return imageCost
+        }
+
+        if let resultCost,
+           let perImageCost = GenerationCostRegistry.perImageCost(from: resultCost) {
+            return perImageCost
+        }
+
+        let estimate = GenerationCostRegistry.estimate(
+            provider: provider,
+            model: model,
+            resolution: resolution,
+            imageCount: 1
+        )
+        return estimate.confidence == .unavailable ? nil : estimate
+    }
+
     func handleMainViewAppeared() {
         refreshAvailableModels(trigger: .onAppear)
         refreshKieBalance()
@@ -430,6 +457,26 @@ final class MainViewModel: ObservableObject {
         }
 
         return "\(item.displayName) (\(apiModelName))\(providerSuffix)"
+    }
+
+    func isImageUtilityModel(_ item: ModelCatalogItem) -> Bool {
+        if item.provider == .kie,
+           let spec = KieModelRegistry.spec(for: item.name) {
+            switch spec.kind {
+            case .upscale, .removeBackground:
+                return true
+            case .textToImage, .imageToImage:
+                return false
+            }
+        }
+
+        return item.supportedMethods.contains { method in
+            let normalized = method.lowercased()
+            return normalized.contains("upscale")
+                || normalized.contains("removebackground")
+                || normalized.contains("remove-background")
+                || normalized.contains("remove_background")
+        }
     }
 
     func imageModelProvider(for modelName: String) -> ModelProvider {
@@ -544,6 +591,10 @@ final class MainViewModel: ObservableObject {
         config.promptFromImageInstruction = normalizedPromptFromImageInstruction.isEmpty
             ? AppConfig.defaultPromptFromImageInstruction
             : normalizedPromptFromImageInstruction
+
+        if !config.creditCostPer100Credits.isFinite || config.creditCostPer100Credits <= 0 {
+            config.creditCostPer100Credits = AppConfig.defaultCreditCostPer100Credits
+        }
 
         let updatedAPIKey = config.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         config.openAIAPIKey = config.openAIAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1072,8 +1123,9 @@ final class MainViewModel: ObservableObject {
                     resolution: resolvedResolution,
                     imageCount: savedURLs.count
                 )
-                self.lastActualGenerationCost = result.cost
+                let resolvedActualCost = result.cost
                     ?? GenerationCostRegistry.combinedActualCost(from: result.images, fallback: estimatedCost)
+                self.lastActualGenerationCost = resolvedActualCost
                 if selectedProvider == .kie {
                     await self.refreshKieBalanceAsync()
                 }
@@ -1084,7 +1136,8 @@ final class MainViewModel: ObservableObject {
                 self.modelResponseText = mergedModelText.isEmpty ? nil : mergedModelText
 
                 for (index, savedURL) in savedURLs.enumerated() {
-                    let modelText = index < result.images.count ? result.images[index].modelText : nil
+                    let generatedImage = index < result.images.count ? result.images[index] : nil
+                    let modelText = generatedImage?.modelText
                     self.appendHistory(
                         HistoryRecord(
                             mode: modeForHistory,
@@ -1096,6 +1149,13 @@ final class MainViewModel: ObservableObject {
                             errorMessage: nil,
                             durationMs: durationMs,
                             modelResponseText: modelText,
+                            generationCost: self.historyGenerationCost(
+                                image: generatedImage,
+                                resultCost: resolvedActualCost,
+                                provider: selectedProvider,
+                                model: request.model,
+                                resolution: resolvedResolution
+                            ),
                             networkRoute: routeUsed,
                             proxyUsed: primaryRoute == .proxy,
                             fallbackUsed: fallbackUsed,
@@ -1652,6 +1712,13 @@ final class MainViewModel: ObservableObject {
                         errorMessage: nil,
                         durationMs: durationMs,
                         modelResponseText: completedAsset.image.modelText,
+                        generationCost: historyGenerationCost(
+                            image: completedAsset.image,
+                            resultCost: nil,
+                            provider: provider,
+                            model: request.model,
+                            resolution: resolvedResolution
+                        ),
                         networkRoute: route,
                         proxyUsed: proxyUsed,
                         fallbackUsed: fallbackUsed,

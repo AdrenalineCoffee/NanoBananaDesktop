@@ -57,3 +57,38 @@ func generationCostRegistryCombinesActualKieImageCosts() {
     #expect(actual?.total == 25)
     #expect(actual?.perImage == 12.5)
 }
+
+@Test
+func generationCostRegistryDisplaysCreditCurrencyConversion() {
+    let estimate = GenerationCostRegistry.actualKieCredits(
+        model: "nano-banana-pro",
+        resolution: .k1,
+        imageCount: 1,
+        totalCredits: 25
+    )
+    let conversion = CreditCostConversion(currency: .rub, costPer100Credits: 120)
+
+    let text = GenerationCostRegistry.compactDisplayText(
+        for: estimate,
+        language: .ru,
+        creditConversion: conversion
+    )
+
+    #expect(text == "25 Kie credits (~30.00 RUB)")
+}
+
+@Test
+func generationCostRegistryBuildsPerImageCostFromTotal() {
+    let estimate = GenerationCostRegistry.actualKieCredits(
+        model: "nano-banana-pro",
+        resolution: .k1,
+        imageCount: 4,
+        totalCredits: 100
+    )
+
+    let perImage = GenerationCostRegistry.perImageCost(from: estimate)
+
+    #expect(perImage?.imageCount == 1)
+    #expect(perImage?.total == 25)
+    #expect(perImage?.perImage == 25)
+}

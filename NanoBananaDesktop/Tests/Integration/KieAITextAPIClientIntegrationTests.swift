@@ -3,22 +3,23 @@ import Testing
 @testable import NanoBananaDesktop
 
 @Test
-func kieTextClientSendsChatCompletionsPayload() async throws {
-    let apiKey = "kie-text-chat"
+func kieTextClientUsesResponsesEndpointForGPT54() async throws {
+    let apiKey = "kie-text-responses"
     let client = KieAITextAPIClient()
     let session = makeKieTextSession()
     defer { MockURLProtocol.removeHandler(forAPIKey: apiKey) }
 
     MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
-        #expect(request.url?.path == "/gpt-5-4/v1/chat/completions")
+        #expect(request.url?.path == "/codex/v1/responses")
         let payload = try kieTextJSONObject(from: request)
         #expect(payload["model"] as? String == "gpt-5-4")
-        let messages = try #require(payload["messages"] as? [[String: Any]])
-        #expect(messages.first?["role"] as? String == "user")
-        #expect(messages.first?["content"] as? String == "Improve prompt")
+        #expect(payload["stream"] as? Bool == false)
+        let input = try #require(payload["input"] as? [[String: Any]])
+        let content = try #require(input.first?["content"] as? [[String: Any]])
+        #expect(content.contains { ($0["type"] as? String) == "input_text" && ($0["text"] as? String) == "Improve prompt" })
 
         let data = try JSONSerialization.data(withJSONObject: [
-            "choices": [["message": ["content": "Improved prompt"]]]
+            "output_text": "Improved prompt"
         ])
         return (
             HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
@@ -39,7 +40,109 @@ func kieTextClientSendsChatCompletionsPayload() async throws {
 }
 
 @Test
-func kieTextClientUploadsImageAndSendsImageURLContent() async throws {
+func kieTextClientSendsChatCompletionsPayloadWithTypedContent() async throws {
+    let apiKey = "kie-text-chat"
+    let client = KieAITextAPIClient()
+    let session = makeKieTextSession()
+    defer { MockURLProtocol.removeHandler(forAPIKey: apiKey) }
+
+    MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
+        #expect(request.url?.path == "/gpt-5-2/v1/chat/completions")
+        let payload = try kieTextJSONObject(from: request)
+        #expect(payload["model"] == nil)
+        let messages = try #require(payload["messages"] as? [[String: Any]])
+        #expect(messages.first?["role"] as? String == "user")
+        let content = try #require(messages.first?["content"] as? [[String: Any]])
+        #expect(content.contains { ($0["type"] as? String) == "text" && ($0["text"] as? String) == "Improve prompt" })
+
+        return try kieTextJSONResponse(
+            url: request.url!,
+            object: ["choices": [["message": ["content": [["type": "text", "text": "Improved chat prompt"]]]]]]
+        )
+    }
+
+    let text = try await client.generateText(
+        prompt: "Improve prompt",
+        model: "kie:gpt-5-2",
+        apiKey: apiKey,
+        timeoutSec: 5,
+        session: session,
+        route: .directFallback
+    )
+
+    #expect(text == "Improved chat prompt")
+}
+
+@Test
+func kieTextClientUsesClaudeMessagesEndpointForOpus() async throws {
+    let apiKey = "kie-text-claude"
+    let client = KieAITextAPIClient()
+    let session = makeKieTextSession()
+    defer { MockURLProtocol.removeHandler(forAPIKey: apiKey) }
+
+    MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
+        #expect(request.url?.path == "/claude/v1/messages")
+        let payload = try kieTextJSONObject(from: request)
+        #expect(payload["model"] as? String == "claude-opus-4-7")
+        #expect(payload["stream"] as? Bool == false)
+        #expect(payload["max_tokens"] as? Int == 4096)
+        let messages = try #require(payload["messages"] as? [[String: Any]])
+        #expect(messages.first?["role"] as? String == "user")
+        #expect(messages.first?["content"] as? String == "Improve prompt")
+
+        return try kieTextJSONResponse(
+            url: request.url!,
+            object: ["content": [["type": "text", "text": "Improved Claude prompt"]]]
+        )
+    }
+
+    let text = try await client.generateText(
+        prompt: "Improve prompt",
+        model: "kie:claude-opus-4-7",
+        apiKey: apiKey,
+        timeoutSec: 5,
+        session: session,
+        route: .directFallback
+    )
+
+    #expect(text == "Improved Claude prompt")
+}
+
+@Test
+func kieTextClientParsesEventStreamTextChunks() async throws {
+    let apiKey = "kie-text-sse"
+    let client = KieAITextAPIClient()
+    let session = makeKieTextSession()
+    defer { MockURLProtocol.removeHandler(forAPIKey: apiKey) }
+
+    MockURLProtocol.setHandler(forAPIKey: apiKey) { request in
+        #expect(request.url?.path == "/codex/v1/responses")
+        let data = """
+        data: {"choices":[{"delta":{"content":"Improved"}}]}
+        data: {"choices":[{"delta":{"content":" prompt"}}]}
+        data: [DONE]
+
+        """.data(using: .utf8)!
+        return (
+            HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "text/event-stream"])!,
+            data
+        )
+    }
+
+    let text = try await client.generateText(
+        prompt: "Improve prompt",
+        model: "kie:gpt-5-4",
+        apiKey: apiKey,
+        timeoutSec: 5,
+        session: session,
+        route: .directFallback
+    )
+
+    #expect(text == "Improved prompt")
+}
+
+@Test
+func kieTextClientUploadsImageAndSendsResponsesImageInput() async throws {
     let apiKey = "kie-text-image"
     let client = KieAITextAPIClient()
     let session = makeKieTextSession()
@@ -52,15 +155,15 @@ func kieTextClientUploadsImageAndSendsImageURLContent() async throws {
                 url: request.url!,
                 object: ["code": 200, "msg": "success", "data": ["downloadUrl": "https://example.com/ref.png"]]
             )
-        case "/gpt-5-4/v1/chat/completions":
+        case "/codex/v1/responses":
             let payload = try kieTextJSONObject(from: request)
-            let messages = try #require(payload["messages"] as? [[String: Any]])
-            let content = try #require(messages.first?["content"] as? [[String: Any]])
-            #expect(content.contains { ($0["type"] as? String) == "image_url" })
-            #expect(content.contains { ($0["type"] as? String) == "text" && ($0["text"] as? String) == "Describe image" })
+            let input = try #require(payload["input"] as? [[String: Any]])
+            let content = try #require(input.first?["content"] as? [[String: Any]])
+            #expect(content.contains { ($0["type"] as? String) == "input_image" && ($0["image_url"] as? String) == "https://example.com/ref.png" })
+            #expect(content.contains { ($0["type"] as? String) == "input_text" && ($0["text"] as? String) == "Describe image" })
             return try kieTextJSONResponse(
                 url: request.url!,
-                object: ["choices": [["message": ["content": "Prompt from Kie image"]]]]
+                object: ["data": ["output_text": "Prompt from Kie image"]]
             )
         default:
             throw URLError(.badURL)

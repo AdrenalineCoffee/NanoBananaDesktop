@@ -48,6 +48,7 @@
 "settings.group.proxy" = "Прокси";
 "settings.group.output" = "Вывод";
 "settings.group.localization" = "Локализация";
+"settings.group.cost_conversion" = "Конвертация стоимости кредитов";
 "settings.api_key" = "Gemini API ключ";
 "settings.openai_api_key" = "OpenAI API ключ";
 "settings.openai_compatible_api_key" = "OpenAI-compatible API ключ";
@@ -91,6 +92,9 @@
 "settings.output_default_hint" = "По умолчанию: ~/Pictures/NanoBanana_img";
 "settings.timeout" = "Таймаут запроса";
 "settings.generation_completion_notifications" = "Уведомлять о завершении генерации";
+"settings.credit_cost_currency" = "Валюта";
+"settings.credit_cost_per_100" = "Цена за 100 Kie credits";
+"settings.credit_cost_per_100_hint" = "Стоимость Kie credits примерно конвертируется по этому значению.";
 "settings.version_value" = "Версия: %@";
 "settings.proxy_enabled" = "Использовать прокси для сетевых запросов";
 "settings.allow_direct_fallback" = "Разрешить прямой fallback при сбое прокси";
@@ -141,6 +145,11 @@
 "history.page_format" = "Страница %d из %d";
 "history.previous_page" = "Предыдущая страница";
 "history.next_page" = "Следующая страница";
+"history.cost_format" = "Стоимость: %@";
+
+"currency.usd" = "Доллары США";
+"currency.eur" = "Евро";
+"currency.rub" = "Рубли";
 
 "route.proxy" = "PROXY";
 "route.direct_fallback" = "DIRECT FALLBACK";
@@ -268,3 +277,5 @@
 "sidebar.kie_balance_unknown" = "Kie balance: неизвестен";
 "sidebar.kie_balance_error" = "Kie balance: ошибка";
 "sidebar.kie_balance_refresh" = "Обновить баланс Kie.ai";
+"main.model_group_generation" = "Генеративные ИИ";
+"main.model_group_utility" = "ИИ утилиты";

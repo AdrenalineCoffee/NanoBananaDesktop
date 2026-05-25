@@ -118,7 +118,44 @@ enum GenerationCostRegistry {
         )
     }
 
-    static func displayText(for estimate: GenerationCostEstimate, language: AppLanguage) -> String {
+    static func perImageCost(from estimate: GenerationCostEstimate) -> GenerationCostEstimate? {
+        guard estimate.confidence != .unavailable else {
+            return nil
+        }
+
+        let imageCount = max(estimate.imageCount, 1)
+        let perImage = estimate.perImage ?? estimate.total.map { $0 / Double(imageCount) }
+        return GenerationCostEstimate(
+            provider: estimate.provider,
+            model: estimate.model,
+            resolution: estimate.resolution,
+            imageCount: 1,
+            unit: estimate.unit,
+            perImage: perImage,
+            total: perImage,
+            confidence: estimate.confidence,
+            note: estimate.note
+        )
+    }
+
+    static func compactDisplayText(
+        for estimate: GenerationCostEstimate,
+        language: AppLanguage,
+        creditConversion: CreditCostConversion? = nil
+    ) -> String {
+        guard estimate.confidence != .unavailable,
+              let total = estimate.total else {
+            return language == .ru ? "недоступно" : "unavailable"
+        }
+
+        return valueText(for: estimate, total: total, language: language, creditConversion: creditConversion)
+    }
+
+    static func displayText(
+        for estimate: GenerationCostEstimate,
+        language: AppLanguage,
+        creditConversion: CreditCostConversion? = nil
+    ) -> String {
         switch estimate.confidence {
         case .unavailable:
             return language == .ru
@@ -138,16 +175,7 @@ enum GenerationCostRegistry {
                 prefix = estimate.confidence == .actual ? "Actual" : "Estimate"
             }
 
-            let value: String
-            switch estimate.unit {
-            case .usd:
-                value = "~$\(formatUSD(total))"
-            case .kieCredits:
-                value = "~\(formatCredits(total)) Kie credits"
-            case .unknown:
-                value = language == .ru ? "недоступно" : "unavailable"
-            }
-
+            let value = valueText(for: estimate, total: total, language: language, creditConversion: creditConversion)
             let images = language == .ru
                 ? "за \(estimate.imageCount) изображ."
                 : "for \(estimate.imageCount) image(s)"
@@ -155,6 +183,27 @@ enum GenerationCostRegistry {
                 ? (language == .ru ? " · тариф шлюза может отличаться" : " · gateway pricing may differ")
                 : ""
             return "\(prefix): \(value) \(images)\(note)"
+        }
+    }
+
+    private static func valueText(
+        for estimate: GenerationCostEstimate,
+        total: Double,
+        language: AppLanguage,
+        creditConversion: CreditCostConversion?
+    ) -> String {
+        let isActual = estimate.confidence == .actual
+        switch estimate.unit {
+        case .usd:
+            return "\(isActual ? "" : "~")$\(formatUSD(total))"
+        case .kieCredits:
+            let credits = "\(isActual ? "" : "~")\(formatCredits(total)) Kie credits"
+            guard let converted = creditConversion?.formattedApproximateAmount(forCredits: total) else {
+                return credits
+            }
+            return "\(credits) (\(converted))"
+        case .unknown:
+            return language == .ru ? "недоступно" : "unavailable"
         }
     }
 
